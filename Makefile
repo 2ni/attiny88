@@ -6,17 +6,22 @@ compile:
 flash:
 	pio run -t program
 
-# see https://stackoverflow.com/questions/25591406/how-to-make-mac-detect-avr-board-using-usbasp-and-burn-program-to-it
 check:
-	avrdude -c usbasp -p t88 -P usb -v
+	@avrdude -c usbtiny -p t88 -P usb -v
 
 show_fuses:
-	@avrdude -c usbasp -p t88 -P usb 2>&1 |grep Fuses
+	@avrdude -c usbtiny -p t88 -P usb 2>&1 |grep Fuses
+
+raw:
+	@avr-gcc -g -Os -mmcu=attiny88 -c -DF_CPU=8000000UL blink.c
+	@avr-size -C blink.o
+	@avr-objcopy -j .text -j .data -O ihex blink.o blink.hex
+	@avrdude -p t88 -c usbtiny -U flash:w:blink.hex:i -F -P usb
 
 # https://eleccelerator.com/fusecalc/fusecalc.php?chip=attiny88
 # no div8, clk to pb0
 fuse:
-	avrdude -c usbasp -p t88 -P usb -U lfuse:w:0xAE:m -U hfuse:w:0xDF:m -U efuse:w:0xFF:m
+	avrdude -c usbtiny -p t88 -P usb -U lfuse:w:0xAE:m -U hfuse:w:0xDF:m -U efuse:w:0xFF:m
 
 # Connect PD3 to RXD of UART. GND programmer to GND UART.
 # Connect UART to computer via USB
