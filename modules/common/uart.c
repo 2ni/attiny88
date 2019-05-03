@@ -1,18 +1,24 @@
+/*
+ * DEBUG_PORT, DEBUG_PIN, DEBUG_DDR must be defined
+ * to a pin on which TXD is connected to
+ */
+
 #include <stdint.h>
 #include <avr/io.h>
 #include <util/delay.h>
 #include "uart.h"
+#include "def.h"
 
 #define UART_SET_BIT(port,bit)   (port |=  (1 << bit))
 #define UART_CLEAR_BIT(port,bit) (port &= ~(1 << bit))
 
 #define UART_BIT_WAIT()  _delay_us(1000000.0 / (float) UART_BPS)
-#define UART_SEND_HIGH() {UART_CLEAR_BIT(UART_TX_PORT, UART_TX_PIN); UART_BIT_WAIT();}
-#define UART_SEND_LOW()  {UART_SET_BIT(UART_TX_PORT, UART_TX_PIN); UART_BIT_WAIT();}
+#define UART_SEND_HIGH() {UART_CLEAR_BIT(DEBUG_PORT, DEBUG_PIN); UART_BIT_WAIT();}
+#define UART_SEND_LOW()  {UART_SET_BIT(DEBUG_PORT, DEBUG_PIN); UART_BIT_WAIT();}
 
 uint8_t uart_setup(void){
-  UART_SET_BIT(UART_TX_DDR, UART_TX_PIN);
-  UART_SET_BIT(UART_TX_PORT, UART_TX_PIN);
+  UART_SET_BIT(DEBUG_DDR, DEBUG_PIN);
+  UART_SET_BIT(DEBUG_PORT, DEBUG_PIN);
   return 0;
 }
 

@@ -1,17 +1,14 @@
 /*
  * from http://www.justgeek.de/a-simple-simplex-uart-for-debugging-avrs/
  */
-#ifndef __UART_H
-#define __UART_H
+#ifndef __UART_H__
+#define __UART_H__
 #include <stdint.h>
 #include <stdio.h>
 #include <avr/io.h>
 
 // Baud rate
 #define UART_BPS 9600
-#define UART_TX_DDR  DDRD
-#define UART_TX_PORT PORTD
-#define UART_TX_PIN  PD3
 
 #define DINIT() uart_setup()
 #define DCRLF() uart_puts("\r\n")
