@@ -23,7 +23,8 @@ os.system('find src/ -type l -delete')
 
 # always link common functions
 for f in os.listdir('modules/common/'):
-    os.system('ln -s ../modules/common/{f} src/'.format(f=f))
+    if (f.endswith(".h") or f.endswith(".c") or f.endswith(".cpp")):
+        os.system('ln -s ../modules/common/{f} src/'.format(f=f))
 
 # link each given file in src
 for f in args.files:
