@@ -6,7 +6,8 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
-#include "avr_print.h"
+//#include "avr_print.h"
+#include "uart.h"
 
 #define DDR_G DDRA
 #define PORT_G PORTA
@@ -76,6 +77,9 @@ int main(void) {
   CLKPR = 0x00;
   sei();
   */
+
+  DINIT(); // simplex uart setup
+  DL("Hello there");
 
   ledSetup();
 
