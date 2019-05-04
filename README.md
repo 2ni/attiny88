@@ -1,9 +1,10 @@
-## Debug with additional serial
+## Debugging with additional simplex serial
 - [using simplex uart](http://www.justgeek.de/a-simple-simplex-uart-for-debugging-avrs)
 - connect uart to ATtiny: GND-GND, RXD-DEBUG (PD3)
 - connect uart to additional USB on computer
 - connect spi programmer to USB on computer
 
+To run serial console:
 ```
 make debug
 ```
@@ -11,6 +12,7 @@ make debug
 ### Setup USBtiny and flash custom tinyispterm code to programmer
 
 Unforatunately it's not yet [working](https://github.com/cnlohr/tinyisp-micro/issues/1#issuecomment-489075296)
+Some information on [USBtinyISP with ATtiny24](https://github.com/julianschuler/USBtinyISP) might help
 
 What's needed:
 - custom firmware ([tinyisp_micro](https://github.com/cnlohr/tinyisp-micro))) on the programmer
