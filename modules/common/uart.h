@@ -11,6 +11,7 @@
 #define UART_BPS 9600
 
 #define DINIT() uart_setup()
+#define D(str) uart_puts(str)
 #define DCRLF() uart_puts("\r\n")
 #define DL(str) { uart_puts(str); DCRLF(); }
 #define DL2(name, value) { uart_puts(name); uart_puts(": "); uart_puts(value); }

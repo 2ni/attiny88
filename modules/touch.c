@@ -31,31 +31,16 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 
-#if defined (__AVR_ATtiny84__)
-  #define TIMER_vect TIM1_COMPA_vect
-  #define INT_SETUP GIMSK
-  #define INT_CLEAR GIFR
-#elif defined (__AVR_ATtiny88__)
-  #define TIMER_vect TIMER1_COMPA_vect
-  #define INT_SETUP PCICR
-  #define INT_CLEAR PCIFR
-#endif
-
-
 // tr is a temporary variable for storing the value in TCNT1 (timer 1)
 volatile uint16_t tr;
-volatile uint16_t count;
 
 // isr when the touch pin rises
-ISR(PCINT0_vect) {
+ISR(TOUCH_INT_VECT) {
   tr = TCNT1;
-  count++;
-  if (TIFR1 & _BV(OCF1A))
-    tr = 0xfff0;
 }
 
 // isr if the pin takes too long to rise
-ISR(TIMER_vect) {
+ISR(TOUCH_TIMER_VECT) {
   tr = 0xfff0;
 }
 
@@ -63,56 +48,57 @@ ISR(TIMER_vect) {
  * measure values by blocking CPU
  */
 uint16_t measure() {
-  DDRA |= _BV(MOIST_A);  // set as output -> low to discharge capacity
+  TOUCH_DDR |= _BV(MOIST_A);  // set as output -> low to discharge capacity
 
   // wait a short time to ensure discharge
   _delay_ms(10);
 
-  INT_CLEAR = (1<<PCIF0); // clear any pending interrupt flag
-  PCMSK0 |= _BV(MOIST_A_INT); // set pin change interrupt
+  INT_CLEAR = (1<<TOUCH_PCIF); // clear any pending interrupt flag
+  TOUCH_PCMSK |= _BV(MOIST_A_INT); // activate pin change interrupt on pin
 
-  DDRA &= ~_BV(MOIST_A);  // set as input -> capacity is charged via resistor
+  TOUCH_DDR &= ~_BV(MOIST_A);  // set as input -> capacity is charged via resistor
 
-  // reset the timer
+  // reset the timer and start it with prescaler CS10 = /1, CS11 = /8, ...
   TCNT1 = 0;
+  TCCR1B = _BV(CS10);
 
   // put the CPU to sleep until we either get a pin change or overflow compare A.
   sleep_cpu();
-  PCMSK0 &= ~_BV(MOIST_A_INT); // disable pin change interrupt
+  TCCR1B = 0x00; // disable timer
+  TOUCH_PCMSK &= ~_BV(MOIST_A_INT); // disable pin change interrupt
 
   return tr;
 }
 
 int main(void) {
-  DINIT();
+  DINIT();                       // enable debug output
+  led_setup();
+
   uint16_t value;
   unsigned short calibrate = 0;  // initial "zero" value for touch sensor
 
-  // setup timer
+  // setup overflow
+  TIMSK1 |= _BV(OCIE1A);         // enable overflow compare A (to detect if we're taking too long)
+  OCR1A = 0xfff0;                // set overflow A to be 0xfff0 cycles
+  TIFR1 |= _BV(OCF1A);          // interrupt flag register, compares to OCR1A
 
-  TCCR1B = _BV(CS10);       // use prescalar 2. CS10 = /1, CS11 = /8, ...
-  TIMSK1 |= _BV(OCIE1A);  // enable overflow compare A (to detect if we're taking too long)
-  OCR1A = 0xfff0;            // set overflow A to be 0xfff0 cycles
+  sleep_enable();                // allow the CPU to sleep.
 
-  sleep_enable();          // allow the CPU to sleep.
+  INT_SETUP |= _BV(TOUCH_PCIE); // enable pin change interrupts
 
-  INT_SETUP |= _BV(PCIE0);      // enable Pin change interrupts.
-
-  TIFR1 |= _BV(OCF1A); // interrupt flag register, compares to OCR1A
-
-  PORTA &= ~_BV(MOIST_A); // set port low as default
+  TOUCH_PORT &= ~_BV(MOIST_A);   // set port low as default
 
   tr = 0x0000;
 
   DL("Hello there");
-  count = 0;
   sei();
 
   // calibrate sensor
-  DL("calibrating. Do not touch sensor");
+  D("calibrating. Do not touch sensor...");
   for (int i=0; i<10; i++) {
     calibrate = measure();
   }
+  DL(" done");
 
   while (1) {
     value = measure();
@@ -121,9 +107,9 @@ int main(void) {
     DF("value: %u (uncalibrated: %u)", valueCalibrated, value);
 
     if (valueCalibrated > 50) {
-      ledOn('b');
+      led_on('r');
     } else {
-      ledOff('b');
+      led_off('r');
     }
     _delay_ms(500);
   }

@@ -18,6 +18,25 @@
 #define DEBUG_PORT PORTD
 #define DEBUG_DDR DDRD
 
+// touch and moisture sensor settings
+#if defined (__AVR_ATtiny84__)
+  #define TOUCH_TIMER_VECT TIM1_COMPA_vect
+  #define TOUCH_INT_VECT PCINT2_vect
+  #define INT_SETUP GIMSK
+  #define INT_CLEAR GIFR
+#elif defined (__AVR_ATtiny88__)
+  #define TOUCH_TIMER_VECT TIMER1_COMPA_vect
+  #define TOUCH_INT_VECT PCINT2_vect
+  #define INT_SETUP PCICR
+  #define INT_CLEAR PCIFR
+#endif
+
+#define TOUCH_PCIE PCIE2 // PCICR bit setting for PCINT16..23
+#define TOUCH_PCIF PCIF2 // PCIFR bit setting for PCINT16..23
+#define TOUCH_PCMSK PCMSK2 //PCMSK bit setting for PCINT16..23
+#define TOUCH_PORT PORTD
+#define TOUCH_DDR DDRD
+
 #define TOUCH1 PD5
 #define TOUCH1_INT PCINT21
 #define TOUCH2 PD6
@@ -27,6 +46,7 @@
 
 #define MOIST_A PD4   // 1touch, qtouch
 #define MOIST_A_INT  PCINT20
+
 #define MOIST_B PA2   // qtouch
 
 #define TEMP PA0      // 0°=0.81v, 10°=0.55v, 25°=0.3v, 50°=0.11v
@@ -43,7 +63,7 @@
 #define SDA PC4
 #define SCL PC5
 
-inline static void ledSetup() {
+inline static void led_setup() {
   DDR_G |= _BV(LED_G); // enable as output (set 1)
   PORT_G &= ~_BV(LED_G); // set low
 
@@ -54,7 +74,7 @@ inline static void ledSetup() {
   PORT_R &= ~_BV(LED_R); // set low
 }
 
-inline static void ledOn(char color) {
+inline static void led_on(char color) {
   if (color == 'g') {
     PORT_G |= _BV(LED_G); // set high
   } else if (color == 'b') {
@@ -64,7 +84,7 @@ inline static void ledOn(char color) {
   }
 }
 
-inline static void ledOff(char color) {
+inline static void led_off(char color) {
   if (color == 'g') {
     PORT_G &= ~_BV(LED_G); // set low
   } else if (color == 'b') {
@@ -74,7 +94,7 @@ inline static void ledOff(char color) {
   }
 }
 
-inline static void ledToggle(char color) {
+inline static void led_toggle(char color) {
   if (color == 'g') {
     PORT_G ^= _BV(LED_G); // invert (exclusive or)
   } else if (color == 'b') {

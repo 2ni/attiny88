@@ -28,11 +28,11 @@ int main(void) {
   DINIT(); // simplex uart setup
   DL("Hello there");
 
-  ledSetup();
+  led_setup();
 
   while (1) {
     _delay_ms(500);
-    ledToggle('b');
+    led_toggle('r');
   }
 
   return 0;
