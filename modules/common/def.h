@@ -43,6 +43,7 @@
 #define TOUCH2_INT PCINT22
 #define TOUCH3 PD7
 #define TOUCH3_INT PCINT23
+#define TOUCH_THRESHOLD 50
 
 #define MOIST_A PD4   // 1touch, qtouch
 #define MOIST_A_INT  PCINT20
@@ -92,6 +93,12 @@ inline static void led_off(char color) {
   } else if (color == 'r') {
     PORT_R &= ~_BV(LED_R);
   }
+}
+
+inline static void led_off_all() {
+  led_off('r');
+  led_off('g');
+  led_off('b');
 }
 
 inline static void led_toggle(char color) {
