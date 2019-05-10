@@ -96,7 +96,7 @@ uint16_t measure(int sensor) {
   TCCR1B = _BV(CS10);
 
   // put the CPU to sleep until we either get a pin change or overflow compare A.
-  sleep_cpu();
+  sleep_mode();
   TCCR1B = 0x00; // disable timer
   TOUCH_PCMSK &= ~_BV(input_int); // disable pin change interrupt
 
@@ -134,6 +134,15 @@ ISR(TIMER0_COMPA_vect) {
   sei();
 }
 
+void sleep(uint16_t ms) {
+  start_timer0(ms);
+  while (counter0_done == 0) {
+    sleep_mode();
+  }
+  /* blocked sleeping until waking up */
+  counter0_done = 0; // reset counter flag
+}
+
 int main(void) {
   DINIT();                       // enable debug output
   DL("Hello there");
@@ -158,6 +167,8 @@ int main(void) {
   sei();
 
   setup_timer0();
+
+  /*
   start_timer0(1000);
 
   while(1) {
@@ -173,6 +184,7 @@ int main(void) {
       led_off('g');
     }
   }
+  */
 
   // calibrate touch sensors
   uint16_t offset[4];
@@ -189,32 +201,39 @@ int main(void) {
   uint16_t value[4];
   static int pressed[4];
 
-  // start timer 0 for inactivity
-  // will be restarted after every activity
+  /*
+   * 0: no activity, can sleep
+   * 1: new activity, start activity countdown
+   * 2: ongoing activity countdown
+   */
+  uint8_t sensed_activity = 0;
 
   while (1) {
 
     for (int sensor=0; sensor<4; sensor++) {
       value[sensor] = measure(sensor) - offset[sensor];
+      // DF("sensor %i: %u, (offset: %u)", sensor, value[sensor], offset[sensor]);
       if (value[sensor] > 0xfff0) value[sensor] = 0x0000; // if negative set it 0
 
       // check touch buttons ignore sensor0 which is moisture sensor
       if ( sensor != 0) {
+        // we do have activity
+        if (value[sensor] > TOUCH_THRESHOLD) {
+          sensed_activity = 1;
+        }
+
         if (pressed[sensor] == 0 && value[sensor] > TOUCH_THRESHOLD) {
           pressed[sensor] = 1;
           DF("pushed touch %i", sensor);
         }
 
-        if (sensor == 1) {
-          if(value[1] > TOUCH_THRESHOLD) {
-            stop_timer0();
-            DF("humidity: %u", value[0]);
+        if (sensor == 1 && value[1] > TOUCH_THRESHOLD) {
+          DF("humidity: %u", value[0]);
 
-            led_off_all();
-            if (value[0] > 250) led_on('g');
-            if (value[0] > 500) led_on('r');
-            if (value[0] > 750) led_on('b');
-          }
+          led_off_all();
+          if (value[0] > 250) led_on('g');
+          if (value[0] > 500) led_on('r');
+          if (value[0] > 750) led_on('b');
         }
 
         // release button
@@ -223,11 +242,29 @@ int main(void) {
           DF("released touch %i", sensor);
           if (sensor == 1) {
             led_off_all();
-            start_timer0(1000);
           }
         }
       }
     }
+    // DF("sensed_activity: %u", sensed_activity);
+
+    // no activity - go to sleep
+    if (sensed_activity == 0) {
+      led_on('g');
+      _delay_ms(10);
+      led_off('g');
+      sleep(3000);
+    // new activity sensed
+    // set to ongoing countdown
+    // do not block loop on ongoing countdown
+    } else if (sensed_activity == 1) {
+      sensed_activity = 2;
+      start_timer0(3000);
+    } else if (sensed_activity == 2 && counter0_done == 1) {
+      counter0_done = 0; // reset counter flag
+      sensed_activity = 0;
+    }
+
   }
   return 0;
 }
