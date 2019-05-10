@@ -211,9 +211,9 @@ int main(void) {
   while (1) {
 
     for (int sensor=0; sensor<4; sensor++) {
-      value[sensor] = measure(sensor) - offset[sensor];
+      uint16_t m = measure(sensor);
+      value[sensor] = m < offset[sensor] ? 0 : m - offset[sensor];
       // DF("sensor %i: %u, (offset: %u)", sensor, value[sensor], offset[sensor]);
-      if (value[sensor] > 0xfff0) value[sensor] = 0x0000; // if negative set it 0
 
       // check touch buttons ignore sensor0 which is moisture sensor
       if ( sensor != 0) {
@@ -224,7 +224,7 @@ int main(void) {
 
         if (pressed[sensor] == 0 && value[sensor] > TOUCH_THRESHOLD) {
           pressed[sensor] = 1;
-          DF("pushed touch %i", sensor);
+          DF("pushed touch %i (value: %u)", sensor, value[sensor]);
         }
 
         if (sensor == 1 && value[1] > TOUCH_THRESHOLD) {
