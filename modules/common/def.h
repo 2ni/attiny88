@@ -85,6 +85,19 @@ inline static void led_on(char color) {
   }
 }
 
+inline static int led_is_on(char color) {
+  int val;
+  if (color == 'g') {
+    val = PORT_G & _BV(LED_G);
+  } else if (color == 'b') {
+    val = PORT_B & _BV(LED_B);
+  } else if (color == 'r') {
+    val = PORT_R & _BV(LED_R);
+  }
+
+  return val;
+}
+
 inline static void led_off(char color) {
   if (color == 'g') {
     PORT_G &= ~_BV(LED_G); // set low

@@ -96,12 +96,41 @@ uint16_t measure(int sensor) {
   return tr;
 }
 
+void setup_timer0() {
+  // setup timer0
+  TIMSK0 |= _BV(OCIE0A); // compare match A int enable
+  TIFR0 |= _BV(OCF0A); // ISR(TIMER0_COMPA_vect)
+  // TIMSK0 |= _BV(TOIE0) // overflow interrupt enable using ISR(TIMER0_OVF_vect)
+}
+
+volatile uint16_t counter0, counter0_init;
+void start_timer0(uint16_t duration) {
+  counter0 = counter0_init = duration;
+  OCR0A = 8; // 8MHz/1024/8 = 1.024ms
+  TCNT0 = 0;
+  TCCR0A |= _BV(CTC0) | _BV(CS00) | _BV(CS02); // start timer with prescaler 1024 and CTC (clear timer on compare)
+}
+
+void stop_timer0() {
+  TCCR0A = 0x00; // stop timer 0
+}
+
+// interrupt 0
+ISR(TIMER0_COMPA_vect) {
+  cli();
+  if (--counter0 == 0) {
+    led_toggle('r');
+    counter0 = led_is_on('r') ? 10: counter0_init;
+  }
+  sei();
+}
+
 int main(void) {
   DINIT();                       // enable debug output
   led_setup();
 
 
-  // setup overflow
+  // setup timer1 overflow
   TIMSK1 |= _BV(OCIE1A);         // enable overflow compare A (to detect if we're taking too long)
   OCR1A = 0xfff0;                // set overflow A to be 0xfff0 cycles
   TIFR1 |= _BV(OCF1A);          // interrupt flag register, compares to OCR1A
@@ -113,6 +142,10 @@ int main(void) {
   TOUCH_PORT &= ~(_BV(MOIST_A) | _BV(TOUCH1) | _BV(TOUCH2) | _BV(TOUCH3));   // set low as default
 
   tr = 0x0000;
+
+  setup_timer0();
+  start_timer0(1000);
+
 
   DL("Hello there");
   sei();
@@ -132,18 +165,25 @@ int main(void) {
   uint16_t value[4];
   static int pressed[4];
 
+  // start timer 0 for inactivity
+  // will be restarted after every activity
+
   while (1) {
+
     for (int sensor=0; sensor<4; sensor++) {
       value[sensor] = measure(sensor) - offset[sensor];
       if (value[sensor] > 0xfff0) value[sensor] = 0x0000; // if negative set it 0
 
-      // check touch buttons
+      // check touch buttons ignore sensor0 which is moisture sensor
       if ( sensor != 0) {
         if (pressed[sensor] == 0 && value[sensor] > TOUCH_THRESHOLD) {
           pressed[sensor] = 1;
-          DF("pushing touch %i", sensor);
+          DF("pushed touch %i", sensor);
+        }
 
-          if (sensor == 1) {
+        if (sensor == 1) {
+          if(value[1] > TOUCH_THRESHOLD) {
+            stop_timer0();
             DF("humidity: %u", value[0]);
 
             led_off_all();
@@ -151,20 +191,19 @@ int main(void) {
             if (value[0] > 500) led_on('r');
             if (value[0] > 750) led_on('b');
           }
-
-          if (sensor == 2) {
-            led_off_all();
-          }
         }
 
         // release button
         if (pressed[sensor] == 1 && value[sensor] < TOUCH_THRESHOLD) {
           pressed[sensor] = 0;
+          DF("released touch %i", sensor);
+          if (sensor == 1) {
+            led_off_all();
+            start_timer0(1000);
+          }
         }
       }
     }
-
-    //_delay_ms(500);
   }
   return 0;
 }
