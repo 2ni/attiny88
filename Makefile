@@ -30,3 +30,6 @@ debug:
 	@echo "quit with: ctrl-a; ctrl-$$ "
 	@sleep 1
 	@screen /dev/cu.usbserial-AH06TDUZ
+
+terminal:
+	@platformio device monitor --port=/dev/cu.usbserial-AH06TDUZ

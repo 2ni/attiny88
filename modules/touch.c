@@ -24,7 +24,14 @@
  * PORTC |= (_BV(0) | _BV(2) | _BV(7));  // Set bits 0,2,7
  * PORTC &= ~(_BV(1) | _BV(2) | _BV(6)); // Clear bits 1,2,6
  * PORTC ^= (_BV(5) | _BV(3));           // Toggle bits 3,5
+
+ * Sleep with bit manipulation
+ * SMCR &= ~(_BV(SM1) | _BV(SM0)); // sleep mode "Idle"
  *
+ * SMCR |= _BV(SE); // go into sleep
+ * __asm__ __volatile__ ("sleep\n\t"::);
+ *
+ * SMCR &= ~_BV(SE); // clear sleep bit upon waking up
  */
 
 #include <avr/io.h>
@@ -104,11 +111,13 @@ void setup_timer0() {
 }
 
 volatile uint16_t counter0, counter0_init;
+volatile uint8_t counter0_done;
 void start_timer0(uint16_t duration) {
   counter0 = counter0_init = duration;
   OCR0A = 8; // 8MHz/1024/8 = 1.024ms
   TCNT0 = 0;
   TCCR0A |= _BV(CTC0) | _BV(CS00) | _BV(CS02); // start timer with prescaler 1024 and CTC (clear timer on compare)
+  counter0_done = 0;
 }
 
 void stop_timer0() {
@@ -119,23 +128,23 @@ void stop_timer0() {
 ISR(TIMER0_COMPA_vect) {
   cli();
   if (--counter0 == 0) {
-    led_toggle('r');
-    counter0 = led_is_on('r') ? 10: counter0_init;
+    counter0 = counter0_init;
+    counter0_done = 1;
   }
   sei();
 }
 
 int main(void) {
   DINIT();                       // enable debug output
-  led_setup();
+  DL("Hello there");
 
+  led_setup();
 
   // setup timer1 overflow
   TIMSK1 |= _BV(OCIE1A);         // enable overflow compare A (to detect if we're taking too long)
   OCR1A = 0xfff0;                // set overflow A to be 0xfff0 cycles
   TIFR1 |= _BV(OCF1A);          // interrupt flag register, compares to OCR1A
 
-  sleep_enable();                // allow the CPU to sleep.
 
   INT_SETUP |= _BV(TOUCH_PCIE); // enable pin change interrupts
 
@@ -143,12 +152,27 @@ int main(void) {
 
   tr = 0x0000;
 
+  set_sleep_mode(SLEEP_MODE_IDLE);
+  sleep_enable();
+
+  sei();
+
   setup_timer0();
   start_timer0(1000);
 
+  while(1) {
+    // avr wakes up on interrupt but we have an additional counter over it
+    while (counter0_done == 0) {
+      sleep_mode();
+    }
+    counter0_done = 0; // clear count flag
 
-  DL("Hello there");
-  sei();
+    if (!led_is_on('g')) {
+      led_on('g');
+      _delay_ms(20);
+      led_off('g');
+    }
+  }
 
   // calibrate touch sensors
   uint16_t offset[4];
