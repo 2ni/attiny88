@@ -1,5 +1,7 @@
 .PHONY: compile upload check fuse debug
 
+ft: flash terminal
+
 compile:
 	pio run
 
@@ -36,3 +38,6 @@ terminals:
 
 terminal:
 	@./handle_serial.py --monitor --port=$$port
+
+terminalt:
+	@./handle_serial.py --monitor --port=$$port | ./ts
