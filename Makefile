@@ -31,5 +31,8 @@ debug:
 	@sleep 1
 	@screen /dev/cu.usbserial-AH06TDUZ
 
+terminals:
+	@./handle_serial.py --list --port=$$port
+
 terminal:
-	@platformio device monitor --port=/dev/cu.usbserial-AH06TDUZ
+	@./handle_serial.py --monitor --port=$$port
