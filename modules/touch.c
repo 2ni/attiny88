@@ -55,11 +55,13 @@ ISR(TOUCH_INT_VECT) {
 }
 
 // timer1 compare A
+// 16bit
 ISR(TOUCH_TIMER1_VECT) {
   tr = 0xfff0;
 }
 
 // timer 0 compare A
+// 8bit
 ISR(TOUCH_TIMER0_VECT) {
   cli();
   if (--counter0 == 0) {
@@ -76,8 +78,14 @@ void setup_timer0() {
   // TIMSK0 |= _BV(TOIE0) // overflow interrupt enable using ISR(TIMER0_OVF_vect)
 }
 
-void start_timer0(uint16_t duration) {
-  counter0 = counter0_init = duration;
+/*
+ * 8bit timer for timing work
+ *
+ * 1ms = 1.024ms
+ * -> ms max ~ 67seconds
+ */
+void start_timer0(uint16_t ms) {
+  counter0 = counter0_init = ms;
   OCR0A = 8; // 8MHz/1024/8 = 1.024ms
   TCNT0 = 0;
   TCCR0A |= _BV(CTC0) | _BV(CS00) | _BV(CS02); // start timer with prescaler 1024 and CTC (clear timer on compare)
@@ -88,6 +96,9 @@ void stop_timer0() {
   TCCR0A = 0x00; // stop timer 0
 }
 
+/*
+ * 16bit timer for measuring capacitive sensors
+ */
 void setup_timer1() {
   TIMSK1 |= _BV(OCIE1A); // enable overflow compare A (to detect if we're taking too long)
   TIFR1 |= _BV(OCF1A); // interrupt flag register, compares to OCR1A
@@ -96,7 +107,7 @@ void setup_timer1() {
 void start_timer1() {
   OCR1A = 0xfff0; // set overflow A to be 0xfff0 cycles
   TCNT1 = 0;
-  TCCR1B = _BV(CS10); // start timer with prescaler 1
+  TCCR1B |= _BV(CS10); // start timer with prescaler 1
 }
 
 void stop_timer1() {
@@ -119,9 +130,9 @@ void sleep(uint16_t ms) {
  * 2 = TOUCH2
  * 3 = TOUCH3
  */
-uint16_t measure(int sensor) {
-  int input;
-  int input_int;
+uint16_t measure(uint8_t sensor) {
+  uint8_t input;
+  uint8_t input_int;
 
   if (sensor == 0) {
     input = MOIST_A;
@@ -139,23 +150,47 @@ uint16_t measure(int sensor) {
 
   TOUCH_DDR |= _BV(input);  // set as output -> low to discharge capacity
 
+
   // wait a short time to ensure discharge
-  _delay_ms(10);
+  // do not use _delay_ms, as it seems to use a timer in use
+  sleep(10);
+
+  INT_SETUP |= _BV(TOUCH_PCIE); // enable pin change interrupts
 
   INT_CLEAR = (1<<TOUCH_PCIF); // clear any pending interrupt flag
   TOUCH_PCMSK |= _BV(input_int); // activate pin change interrupt on pin
 
   TOUCH_DDR &= ~_BV(input);  // set as input -> capacity is charged via resistor
 
-  // reset the timer and start it with prescaler CS10 = /1, CS11 = /8, ...
   start_timer1();
 
   // put the CPU to sleep until we either get a pin change or overflow compare A.
   sleep_mode();
   stop_timer1();
-  TOUCH_PCMSK &= ~_BV(input_int); // disable pin change interrupt
+
+  // disable pin change interrupt
+  TOUCH_PCMSK &= ~_BV(input_int);
+  INT_SETUP &= ~_BV(TOUCH_PCIE); // pcicr
 
   return tr;
+}
+
+uint16_t offset[4];
+void calibrate() {
+  // calibrate touch sensors
+  DL("calibrating. Do not touch sensor...");
+  for (int sensor=0; sensor<4; sensor++) {
+    // take average values ignoring first ones
+    uint16_t sum = 0;
+    for (int i=0; i<14; i++) {
+      if (i>5) {
+        sum += measure(sensor);
+      }
+    }
+    offset[sensor] = sum/8;
+    DF("sensor %d: %u", sensor, offset[sensor]);
+  }
+  DL("done");
 }
 
 int main(void) {
@@ -164,10 +199,8 @@ int main(void) {
 
   led_setup();
 
-  setup_timer0();
   setup_timer1();
-
-  INT_SETUP |= _BV(TOUCH_PCIE); // enable pin change interrupts
+  setup_timer0();
 
   // set touch pins low
   TOUCH_PORT &= ~(_BV(MOIST_A) | _BV(TOUCH1) | _BV(TOUCH2) | _BV(TOUCH3));
@@ -179,46 +212,22 @@ int main(void) {
 
   sei();
 
-
-  /*
-  start_timer0(1000);
-
-  while(1) {
-    // avr wakes up on interrupt but we have an additional counter over it
-    while (counter0_done == 0) {
-      sleep_mode();
-    }
-    counter0_done = 0; // clear count flag
-
-    if (!led_is_on('g')) {
-      led_on('g');
-      _delay_ms(20);
-      led_off('g');
-    }
-  }
-  */
-
-  // calibrate touch sensors
-  uint16_t offset[4];
-  DL("calibrating. Do not touch sensor...");
-  for (int sensor=0; sensor<4; sensor++) {
-    // take last value (1st ones might be off)
-    for (int i=0; i<10; i++) {
-      offset[sensor] = measure(sensor);
-    }
-    DF("sensor %d: %u", sensor, offset[sensor]);
-  }
-  DL("done");
+  // hardcoded calibrations
+  offset[0] = 145;
+  offset[1] = 35;
+  offset[2] = 45;
+  offset[3] = 45;
 
   uint16_t value[4];
   static int pressed[4];
 
   /*
-   * 0: no activity, can sleep
-   * 1: new activity, start activity countdown
-   * 2: ongoing activity countdown
+   * 0: sleep mode with regular wake-ups to check on sensors
+   * 1: activity (button pushed) -> do nothing
+   * 2: activity (button released) -> start countdown
+   * 3: activity countdown running
    */
-  uint8_t sensed_activity = 0;
+  uint8_t mode = 0;
 
   while (1) {
 
@@ -229,9 +238,9 @@ int main(void) {
 
       // check touch buttons ignore sensor0 which is moisture sensor
       if ( sensor != 0) {
-        // we do have activity
+        // any button pushed
         if (value[sensor] > TOUCH_THRESHOLD) {
-          sensed_activity = 1;
+          mode = 1;
         }
 
         if (pressed[sensor] == 0 && value[sensor] > TOUCH_THRESHOLD) {
@@ -250,31 +259,41 @@ int main(void) {
 
         // release button
         if (pressed[sensor] == 1 && value[sensor] < TOUCH_THRESHOLD) {
+          mode = 2;
           pressed[sensor] = 0;
           DF("released touch %i", sensor);
           if (sensor == 1) {
             led_off_all();
+          } else if (sensor == 3) {
+            calibrate();
           }
         }
       }
     }
-    // DF("sensed_activity: %u", sensed_activity);
 
-    // no activity - go to sleep
-    if (sensed_activity == 0) {
+    // DF("\n************** mode: %u", mode);
+
+    // no activity - sleep mode with regular wake up to check on sensors
+    if (mode == 0) {
       led_on('g');
       _delay_ms(10);
       led_off('g');
       sleep(3000);
-    // new activity sensed
-    // set to ongoing countdown
-    // do not block loop on ongoing countdown
-    } else if (sensed_activity == 1) {
-      sensed_activity = 2;
+    // activity (some button pushed)
+    // do nothing (let the loop run)
+    } else if (mode == 1) {
+    // activity (button released)
+    // let the loop run
+    } else if (mode == 2) {
+      DL("starting countdown");
+      mode = 3;
       start_timer0(3000);
-    } else if (sensed_activity == 2 && counter0_done == 1) {
+    // countdown reached -> switch to sleep mode
+    } else if (mode == 3 && counter0_done == 1) {
+      stop_timer0();
       counter0_done = 0; // reset counter flag
-      sensed_activity = 0;
+      mode = 0;
+      DL("sleep mode");
     }
 
   }
