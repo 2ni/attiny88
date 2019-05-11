@@ -1,4 +1,5 @@
 .PHONY: compile upload check fuse debug
+.DEFAULT_GOAL := compile
 
 ft: flash terminal
 

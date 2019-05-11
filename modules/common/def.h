@@ -20,17 +20,18 @@
 
 // touch and moisture sensor settings
 #if defined (__AVR_ATtiny84__)
-  #define TOUCH_TIMER_VECT TIM1_COMPA_vect
-  #define TOUCH_INT_VECT PCINT2_vect
+  #define TOUCH_TIMER0_VECT TIM0_COMPA_vect
+  #define TOUCH_TIMER1_VECT TIM1_COMPA_vect
   #define INT_SETUP GIMSK
   #define INT_CLEAR GIFR
 #elif defined (__AVR_ATtiny88__)
-  #define TOUCH_TIMER_VECT TIMER1_COMPA_vect
-  #define TOUCH_INT_VECT PCINT2_vect
+  #define TOUCH_TIMER0_VECT TIMER0_COMPA_vect
+  #define TOUCH_TIMER1_VECT TIMER1_COMPA_vect
   #define INT_SETUP PCICR
   #define INT_CLEAR PCIFR
 #endif
 
+#define TOUCH_INT_VECT PCINT2_vect
 #define TOUCH_PCIE PCIE2 // PCICR bit setting for PCINT16..23
 #define TOUCH_PCIF PCIF2 // PCIFR bit setting for PCINT16..23
 #define TOUCH_PCMSK PCMSK2 //PCMSK bit setting for PCINT16..23
