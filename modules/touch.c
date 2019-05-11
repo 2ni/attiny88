@@ -152,8 +152,11 @@ uint16_t measure(uint8_t sensor) {
 
 
   // wait a short time to ensure discharge
-  // do not use _delay_ms, as it seems to use a timer in use
-  sleep(10);
+  // do not use _delay_ms or sleep as timers in use
+  volatile uint16_t i = 0;
+  for (i=0; i<0xff; i++) {
+    __asm__ __volatile__ ("nop");
+  }
 
   INT_SETUP |= _BV(TOUCH_PCIE); // enable pin change interrupts
 
@@ -273,23 +276,24 @@ int main(void) {
 
     // DF("\n************** mode: %u", mode);
 
-    // no activity - sleep mode with regular wake up to check on sensors
     if (mode == 0) {
+      // no activity - sleep mode with regular wake up to check on sensors
       led_on('g');
-      _delay_ms(10);
+      sleep(10);
       led_off('g');
-      sleep(3000);
-    // activity (some button pushed)
-    // do nothing (let the loop run)
+      sleep(3000); // timer0
     } else if (mode == 1) {
-    // activity (button released)
-    // let the loop run
+      // activity (some button pushed)
+      // do nothing (let the loop run)
+      stop_timer0(); // in case we were coming back from mode 3
     } else if (mode == 2) {
+      // activity (button released)
+      // let the loop run
       DL("starting countdown");
       mode = 3;
       start_timer0(3000);
-    // countdown reached -> switch to sleep mode
     } else if (mode == 3 && counter0_done == 1) {
+      // countdown reached -> switch to sleep mode
       stop_timer0();
       counter0_done = 0; // reset counter flag
       mode = 0;
