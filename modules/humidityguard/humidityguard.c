@@ -34,25 +34,12 @@
  * SMCR &= ~_BV(SE); // clear sleep bit upon waking up
  */
 
-#include <avr/io.h>
-#include <util/delay.h>
-#include "def.h"
-
-#include "uart.h"
-
-#include <avr/interrupt.h>
-#include <avr/sleep.h>
-
-// tr is a temporary variable for storing the value in TCNT1 (timer 1)
-volatile uint16_t tr;
-
-volatile uint16_t counter0, counter0_init;
-volatile uint8_t counter0_done;
+#include "humidityguard.h"
 
 // pin interrupt
 ISR(TOUCH_INT_VECT) {
   cli();
-  tr = TCNT1;
+  capacitive_value = TCNT1;
   sei();
 }
 
@@ -60,7 +47,7 @@ ISR(TOUCH_INT_VECT) {
 // 16bit
 ISR(TOUCH_TIMER1_VECT) {
   cli();
-  tr = 0xfff0;
+  capacitive_value = 0xfff0;
   sei();
 }
 
@@ -68,9 +55,9 @@ ISR(TOUCH_TIMER1_VECT) {
 // 8bit
 ISR(TOUCH_TIMER0_VECT) {
   cli();
-  if (--counter0 == 0) {
-    counter0 = counter0_init;
-    counter0_done = 1;
+  if (--timer_isr_call_counter == 0) {
+    timer_isr_call_counter = timer_isr_call_counter_init;
+    timer_is_done = 1;
   }
   sei();
 }
@@ -89,11 +76,11 @@ void setup_timer0() {
  * -> ms max ~ 67seconds
  */
 void start_timer0(uint16_t ms) {
-  counter0 = counter0_init = ms;
+  timer_isr_call_counter = timer_isr_call_counter_init = ms;
   OCR0A = 8; // 8MHz/1024/8 = 1.024ms
   TCNT0 = 0;
   TCCR0A |= _BV(CTC0) | _BV(CS00) | _BV(CS02); // start timer with prescaler 1024 and CTC (clear timer on compare)
-  counter0_done = 0;
+  timer_is_done = 0;
 }
 
 void stop_timer0() {
@@ -123,11 +110,11 @@ void sleep(uint16_t ms) {
   // consumption ~1.1mA
   PRR |= _BV(PRTWI) | _BV(PRTIM1) | _BV(PRSPI) | _BV(PRADC);
   start_timer0(ms);
-  while (counter0_done == 0) {
+  while (timer_is_done == 0) {
     sleep_mode();
   }
   /* blocked sleeping until waking up */
-  counter0_done = 0; // reset counter flag
+  timer_is_done = 0; // reset counter flag
   stop_timer0();
   PRR &= ~(_BV(PRTWI) | _BV(PRTIM1) | _BV(PRSPI) | _BV(PRADC));
 }
@@ -186,7 +173,7 @@ uint16_t measure(uint8_t sensor) {
   TOUCH_PCMSK &= ~_BV(input_int);
   INT_SETUP &= ~_BV(TOUCH_PCIE); // pcicr
 
-  return tr;
+  return capacitive_value;
 }
 
 uint16_t offset[4];
@@ -228,7 +215,7 @@ int main(void) {
   // set touch pins low
   TOUCH_PORT &= ~(_BV(MOIST_A) | _BV(TOUCH1) | _BV(TOUCH2) | _BV(TOUCH3));
 
-  tr = 0x0000;
+  capacitive_value = 0x0000;
 
   set_sleep_mode(SLEEP_MODE_IDLE);
   sleep_enable();
@@ -309,10 +296,10 @@ int main(void) {
       DL("starting countdown");
       mode = 3;
       start_timer0(3000);
-    } else if (mode == 3 && counter0_done == 1) {
+    } else if (mode == 3 && timer_is_done == 1) {
       // countdown reached -> switch to sleep mode
       stop_timer0();
-      counter0_done = 0; // reset counter flag
+      timer_is_done = 0; // reset counter flag
       mode = 0;
       DL("sleep mode");
     }
