@@ -87,7 +87,7 @@ inline static void led_on(char color) {
 }
 
 inline static int led_is_on(char color) {
-  int val;
+  uint8_t val;
   if (color == 'g') {
     val = PORT_G & _BV(LED_G);
   } else if (color == 'b') {
