@@ -51,13 +51,17 @@ volatile uint8_t counter0_done;
 
 // pin interrupt
 ISR(TOUCH_INT_VECT) {
+  cli();
   tr = TCNT1;
+  sei();
 }
 
 // timer1 compare A
 // 16bit
 ISR(TOUCH_TIMER1_VECT) {
+  cli();
   tr = 0xfff0;
+  sei();
 }
 
 // timer 0 compare A
@@ -115,12 +119,17 @@ void stop_timer1() {
 }
 
 void sleep(uint16_t ms) {
+  // turn off anything which is possible
+  // consumption ~1.1mA
+  PRR |= _BV(PRTWI) | _BV(PRTIM1) | _BV(PRSPI) | _BV(PRADC);
   start_timer0(ms);
   while (counter0_done == 0) {
     sleep_mode();
   }
   /* blocked sleeping until waking up */
   counter0_done = 0; // reset counter flag
+  stop_timer0();
+  PRR &= ~(_BV(PRTWI) | _BV(PRTIM1) | _BV(PRSPI) | _BV(PRADC));
 }
 
 /*
@@ -150,11 +159,14 @@ uint16_t measure(uint8_t sensor) {
 
   TOUCH_DDR |= _BV(input);  // set as output -> low to discharge capacity
 
-
   // wait a short time to ensure discharge
   // do not use _delay_ms or sleep as timers in use
   volatile uint16_t i = 0;
-  for (i=0; i<0xff; i++) {
+  while ((TOUCH_PORT & _BV(input)) != 0) {
+    __asm__ __volatile__ ("nop");
+  }
+
+  for (i=0; i<255; i++) {
     __asm__ __volatile__ ("nop");
   }
 
@@ -163,9 +175,8 @@ uint16_t measure(uint8_t sensor) {
   INT_CLEAR = (1<<TOUCH_PCIF); // clear any pending interrupt flag
   TOUCH_PCMSK |= _BV(input_int); // activate pin change interrupt on pin
 
-  TOUCH_DDR &= ~_BV(input);  // set as input -> capacity is charged via resistor
-
   start_timer1();
+  TOUCH_DDR &= ~_BV(input);  // set as input -> capacity is charged via resistor
 
   // put the CPU to sleep until we either get a pin change or overflow compare A.
   sleep_mode();
@@ -196,6 +207,15 @@ void calibrate() {
   DL("done");
 }
 
+void show_humidity(uint16_t value) {
+  led_off_all();
+  char color;
+  if (value < 500) color = 'r';
+  else if (value < 1000) color = 'g';
+  else color = 'b';
+  led_on(color);
+}
+
 int main(void) {
   DINIT(); // enable debug output
   DL("Hello there");
@@ -216,10 +236,10 @@ int main(void) {
   sei();
 
   // hardcoded calibrations
-  offset[0] = 145;
-  offset[1] = 35;
-  offset[2] = 45;
-  offset[3] = 45;
+  offset[0] = 166;
+  offset[1] = 57;
+  offset[2] = 68;
+  offset[3] = 65;
 
   uint16_t value[4];
   static int pressed[4];
@@ -248,16 +268,13 @@ int main(void) {
 
         if (pressed[sensor] == 0 && value[sensor] > TOUCH_THRESHOLD) {
           pressed[sensor] = 1;
-          DF("pushed touch %i (value: %u)", sensor, value[sensor]);
+          DF("pushed touch %i (value: %u) (measured: %u)", sensor, value[sensor], m);
         }
 
         if (sensor == 1 && value[1] > TOUCH_THRESHOLD) {
           DF("humidity: %u", value[0]);
 
-          led_off_all();
-          if (value[0] > 250) led_on('g');
-          if (value[0] > 500) led_on('r');
-          if (value[0] > 750) led_on('b');
+          show_humidity(value[0]);
         }
 
         // release button
@@ -278,9 +295,9 @@ int main(void) {
 
     if (mode == 0) {
       // no activity - sleep mode with regular wake up to check on sensors
-      led_on('g');
+      show_humidity(value[0]);
       sleep(10);
-      led_off('g');
+      led_off_all();
       sleep(3000); // timer0
     } else if (mode == 1) {
       // activity (some button pushed)
