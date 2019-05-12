@@ -12,16 +12,42 @@
 #include "def.h"
 #include "uart.h"
 
+void deep_sleep() {
+  cli();
+  // clear all prescale bits 1st
+  uint8_t prescale = 0x00;
+  prescale &= ~_BV(WDP3) | ~_BV(WDP2) | ~_BV(WDP1) | ~_BV(WDP0);
+  prescale |= _BV(WDP2) | _BV(WDP0);
+
+
+  MCUSR &= ~_BV(WDRF); // clear wdt reset flag
+  WDTCSR |= (_BV(WDCE) | _BV(WDE));  // enable WD change bit
+  WDTCSR = _BV(WDIE) | // enable wdt interrupt
+  prescale; // timeout
+
+  power_adc_disable();
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  sleep_enable();
+  sei();
+
+  DL("going to sleep");
+  sleep_mode(); // sleep baby, sleep!
+  DL("I'm back");
+
+  sleep_disable();
+  power_adc_enable();
+}
 
 volatile uint8_t count;
 ISR(WDT_vect) {
   sleep_disable();
   PORTB ^= _BV(LED_R);
 
+  count++;
+
   // stop watchdog
-  if (++count == 8) {
-    WDTCSR &= ~_BV(WDIE);
-  }
+  WDTCSR &= ~_BV(WDIE);
+
   sleep_enable();
 }
 
@@ -33,19 +59,12 @@ int main(void) {
   led_setup();
   count = 0;
 
-  MCUSR &= ~_BV(WDRF); // clear wdt reset flag
-  WDTCSR |= (_BV(WDCE) | _BV(WDE));  // Enable the WD Change Bit
-  WDTCSR = _BV(WDIE) | // Enable WDT Interrupt
-  _BV(WDP2) | _BV(WDP1); // Set Timeout to ~1 seconds
-
-  power_adc_disable();
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-  sleep_enable();
-
   sei();
 
   while (1) {
-    DL("going to sleep");
-    sleep_mode();
+    if (count<8) {
+      DF("count: %u", count);
+      deep_sleep();
+    }
   }
 }
