@@ -32,6 +32,14 @@
  * __asm__ __volatile__ ("sleep\n\t"::);
  *
  * SMCR &= ~_BV(SE); // clear sleep bit upon waking up
+ * TODO check deep_sleep power consumption
+ * TODO save calibrations to sram
+ * TODO calibrate only happens if TOUCH3 pressed longer than 2sec
+ * TODO TOUCH1 turn's on status LED for 2sec
+ * TODO attiny + oled
+ * TODO light/temperature sensors adc
+ * TODO waterproof capacitive touches
+ *
  */
 
 #include "humidityguard.h"
@@ -60,6 +68,15 @@ ISR(TOUCH_TIMER0_VECT) {
     timer_is_done = 1;
   }
   sei();
+}
+
+/*
+ * watchdog interrupt is only called once when calling deep_sleep
+ */
+ISR(WDT_vect) {
+  sleep_disable();
+  WDTCSR &= ~_BV(WDIE); // disable wdt interrupt
+  sleep_enable();
 }
 
 void setup_timer0() {
@@ -106,6 +123,9 @@ void stop_timer1() {
 }
 
 void sleep(uint16_t ms) {
+  set_sleep_mode(SLEEP_MODE_IDLE);
+  sleep_enable();
+
   // turn off anything which is possible
   // consumption ~1.1mA
   PRR |= _BV(PRTWI) | _BV(PRTIM1) | _BV(PRSPI) | _BV(PRADC);
@@ -117,6 +137,58 @@ void sleep(uint16_t ms) {
   timer_is_done = 0; // reset counter flag
   stop_timer0();
   PRR &= ~(_BV(PRTWI) | _BV(PRTIM1) | _BV(PRSPI) | _BV(PRADC));
+
+  sleep_disable();
+}
+
+/*
+ * use watchdog timer
+ * can be used when we just sleep for a predefined time w/o prio wake-up
+ * only specific times can be achieved for simplicity
+ * 16ms, 32ms, 64ms, 125ms, 250ms, 500ms, 1s, 2s, 4s, 8s
+ */
+void deep_sleep(uint16_t mode) {
+  uint8_t prescale = 0x00;
+  // clear all prescale bits first
+  prescale &= ~_BV(WDP3) | ~_BV(WDP2) | ~_BV(WDP1) | ~_BV(WDP0);
+
+  if (mode == 32) {
+    prescale |= _BV(WDP0);
+  } else if (mode == 64) {
+    prescale |= _BV(WDP1);
+  } else if (mode == 125) {
+    prescale |= _BV(WDP1) | _BV(WDP0);
+  } else if (mode == 250) {
+    prescale |= _BV(WDP2);
+  } else if (mode == 500) {
+    prescale |= _BV(WDP2) | _BV(WDP0);
+  } else if (mode == 1000) {
+    prescale |= _BV(WDP2) | _BV(WDP1);
+  } else if (mode == 2000) {
+    prescale |= _BV(WDP2) | _BV(WDP1) | _BV(WDP0);
+  } else if (mode == 4000) {
+    prescale |= _BV(WDP3);
+  } else if (mode == 8000) {
+    prescale |= _BV(WDP3) | _BV(WDP0);
+  }
+
+  cli();
+  MCUSR &= ~_BV(WDRF); // clear wdt reset flag
+  WDTCSR |= (_BV(WDCE) | _BV(WDE));  // enable WD change bit
+  WDTCSR = _BV(WDIE) | // enable wdt interrupt
+  prescale; // timeout
+
+  power_adc_disable();
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  sleep_enable();
+  sei();
+
+  DL("going to sleep");
+  sleep_mode(); // sleep baby, sleep!
+  DL("I'm back");
+
+  sleep_disable();
+  power_adc_enable();
 }
 
 /*
@@ -166,8 +238,12 @@ uint16_t measure(uint8_t sensor) {
   TOUCH_DDR &= ~_BV(input);  // set as input -> capacity is charged via resistor
 
   // put the CPU to sleep until we either get a pin change or overflow compare A.
+  set_sleep_mode(SLEEP_MODE_IDLE);
+  sleep_enable();
+
   sleep_mode();
   stop_timer1();
+  sleep_disable();
 
   // disable pin change interrupt
   TOUCH_PCMSK &= ~_BV(input_int);
@@ -176,29 +252,49 @@ uint16_t measure(uint8_t sensor) {
   return capacitive_value;
 }
 
-uint16_t offset[4];
-void calibrate() {
-  // calibrate touch sensors
-  DL("calibrating. Do not touch sensor...");
-  for (int sensor=0; sensor<4; sensor++) {
-    // take average values ignoring first ones
-    uint16_t sum = 0;
-    for (int i=0; i<14; i++) {
-      if (i>5) {
-        sum += measure(sensor);
-      }
+/*
+ * get average from 6-13
+ * ignoring 1st values
+ */
+uint16_t get_average(uint8_t sensor) {
+  uint16_t sum = 0;
+  for (uint8_t i=0; i<14; i++) {
+    if (i>5) {
+      sum += measure(sensor);
     }
-    offset[sensor] = sum/8;
+  }
+  return sum/8;
+}
+
+/*
+ * calibrate all sensors
+ * the sensor should be untouched and unused while processing
+ * (min values)
+ */
+void calibrate() {
+  DL("calibrating. Do not touch sensor...");
+  for (uint8_t sensor=0; sensor<=3; sensor++) {
+    offset[sensor] = get_average(sensor);
     DF("sensor %d: %u", sensor, offset[sensor]);
   }
   DL("done");
 }
 
+/*
+ * calibrate humidity sensor
+ * (optimal value)
+ */
+void calibrate_humidity() {
+  DL("calibrating humidity optimum");
+  humidity_optimum = get_average(0);
+  DF("humidity: %u", humidity_optimum);
+}
+
 void show_humidity(uint16_t value) {
   led_off_all();
   char color;
-  if (value < 500) color = 'r';
-  else if (value < 1000) color = 'g';
+  if (value < humidity_optimum/2) color = 'r';
+  else if (value < humidity_optimum) color = 'g';
   else color = 'b';
   led_on(color);
 }
@@ -217,16 +313,7 @@ int main(void) {
 
   capacitive_value = 0x0000;
 
-  set_sleep_mode(SLEEP_MODE_IDLE);
-  sleep_enable();
-
   sei();
-
-  // hardcoded calibrations
-  offset[0] = 166;
-  offset[1] = 57;
-  offset[2] = 68;
-  offset[3] = 65;
 
   uint16_t value[4];
   static int pressed[4];
@@ -272,7 +359,7 @@ int main(void) {
           if (sensor == 1) {
             led_off_all();
           } else if (sensor == 3) {
-            calibrate();
+            calibrate_humidity();
           }
         }
       }
@@ -282,10 +369,11 @@ int main(void) {
 
     if (mode == 0) {
       // no activity - sleep mode with regular wake up to check on sensors
+      // flash current value on leds
       show_humidity(value[0]);
-      sleep(10);
+      deep_sleep(16);
       led_off_all();
-      sleep(3000); // timer0
+      deep_sleep(4000);
     } else if (mode == 1) {
       // activity (some button pushed)
       // do nothing (let the loop run)

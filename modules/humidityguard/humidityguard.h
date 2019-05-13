@@ -3,12 +3,12 @@
 
 #include <avr/io.h>
 #include <util/delay.h>
-#include "def.h"
-
-#include "uart.h"
-
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
+#include <avr/power.h>
+
+#include "def.h"
+#include "uart.h"
 
 // value we get from a timer to charge a capacity
 volatile uint16_t capacitive_value;
@@ -33,12 +33,18 @@ void setup_timer1();
 void start_timer1();
 void stop_timer1();
 
+// put avr in POWER_DOWN mode
+void deep_sleep(uint16_t mode);
+
 // sensor0: capacitive humidity sensor
 // sensor1-3: capactive touch sensors
 uint16_t measure(uint8_t sensor);
 
 // calibrate sensor and save values to offset
-uint16_t offset[4];
+// hardcode values as default
+uint16_t offset[4] = {166, 57, 68, 65};
+uint16_t humidity_optimum = 1000;
+uint16_t get_average(uint8_t sensor);
 void calibrate();
 
 // show humidity on led
