@@ -32,10 +32,11 @@
  * __asm__ __volatile__ ("sleep\n\t"::);
  *
  * SMCR &= ~_BV(SE); // clear sleep bit upon waking up
- * TODO check deep_sleep power consumption
- * TODO save calibrations to sram
+ * / TODO green led = optimum, blue = too much water, red = not enough water
+ * / TODO check deep_sleep power consumption ~19uA
+ * / TODO save calibration(s) to sram
  * TODO calibrate only happens if TOUCH3 pressed longer than 2sec
- * TODO TOUCH1 turn's on status LED for 2sec
+ * / TODO status LED's are shown until device goes to sleep or any other button pressed
  * TODO attiny + oled
  * TODO light/temperature sensors adc
  * TODO waterproof capacitive touches
@@ -287,21 +288,45 @@ void calibrate() {
 void calibrate_humidity() {
   DL("calibrating humidity optimum");
   humidity_optimum = get_average(0);
+  eeprom_write_word(&ee_humidity_optimum, humidity_optimum);
   DF("humidity: %u", humidity_optimum);
 }
 
 void show_humidity(uint16_t value) {
   led_off_all();
   char color;
-  if (value < humidity_optimum/2) color = 'r';
-  else if (value < humidity_optimum) color = 'g';
-  else color = 'b';
+
+  if (value < humidity_optimum*.8) color = 'r';
+  else if (value > humidity_optimum*1.2) color = 'b';
+  else color = 'g';
   led_on(color);
 }
 
 int main(void) {
   DINIT(); // enable debug output
-  DL("Hello there");
+  DL("\n\nHello there");
+
+  // reading variables from eeprom
+  humidity_optimum = eeprom_read_word(&ee_humidity_optimum);
+  // 1st time call, save defaults to eeprom
+  if (humidity_optimum == 0xffff) {
+    DL("writing default humidity optimum to eeprom");
+    humidity_optimum = 1000;
+    eeprom_write_word(&ee_humidity_optimum, humidity_optimum);
+  }
+
+  for (uint8_t i=0; i<4; i++) {
+    offset[i] = eeprom_read_word(&ee_offset[i]);
+  }
+  // 1st time call, save defaults to eeprom
+  if (offset[0] == 0xffff) {
+    DL("writing default offsets to eeprom");
+    uint16_t o[4] = {166, 57, 68, 65};
+    for (uint8_t i=0; i<4; i++) {
+      offset[i] = o[i];
+      eeprom_write_word(&ee_offset[i], offset[i]);
+    }
+  }
 
   led_setup();
 
@@ -317,6 +342,14 @@ int main(void) {
 
   uint16_t value[4];
   static int pressed[4];
+
+  DL("***** Offsets *****");
+  for (uint8_t i=0; i<4; i++) {
+    DF("sensor %u: %u", i, offset[i]);
+  }
+  uint16_t m = measure(0);
+  DF("humidity optimum: %u, current: %u", humidity_optimum, m < offset[0] ? 0 : m - offset[0]);
+  DL("***************************\n\n");
 
   /*
    * 0: sleep mode with regular wake-ups to check on sensors
@@ -338,6 +371,11 @@ int main(void) {
         // any button pushed
         if (value[sensor] > TOUCH_THRESHOLD) {
           mode = 1;
+          // turn off led's if any button pressed execept touch1
+          // TODO what if 2 buttons pressed
+          if (sensor != 1) {
+            led_off_all();
+          }
         }
 
         if (pressed[sensor] == 0 && value[sensor] > TOUCH_THRESHOLD) {
@@ -356,9 +394,7 @@ int main(void) {
           mode = 2;
           pressed[sensor] = 0;
           DF("released touch %i", sensor);
-          if (sensor == 1) {
-            led_off_all();
-          } else if (sensor == 3) {
+          if (sensor == 3) {
             calibrate_humidity();
           }
         }

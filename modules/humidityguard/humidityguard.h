@@ -6,6 +6,7 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/power.h>
+#include <avr/eeprom.h>
 
 #include "def.h"
 #include "uart.h"
@@ -42,8 +43,10 @@ uint16_t measure(uint8_t sensor);
 
 // calibrate sensor and save values to offset
 // hardcode values as default
-uint16_t offset[4] = {166, 57, 68, 65};
-uint16_t humidity_optimum = 1000;
+uint16_t EEMEM ee_offset[4];
+uint16_t offset[4];
+uint16_t humidity_optimum;
+uint16_t EEMEM ee_humidity_optimum;
 uint16_t get_average(uint8_t sensor);
 void calibrate();
 
