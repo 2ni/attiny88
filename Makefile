@@ -6,6 +6,9 @@ ft: flash terminal
 compile:
 	pio run
 
+clean:
+	platformio run --target clean
+
 flash:
 	pio run -t program
 
