@@ -41,6 +41,8 @@
  * TODO light/temperature sensors adc
  * TODO waterproof capacitive touches
  *
+ * https://github.com/tibounise/SSD1306-AVR
+ * https://github.com/Dygmalab/avr-keyscanner
  */
 
 #include "humidityguard.h"
