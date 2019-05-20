@@ -22,7 +22,7 @@ uint8_t uart_setup(void){
   return 0;
 }
 
-void uart_putc(char c){
+void uart_putc(char c) {
   uint8_t i = 8;
   // start bit
   UART_SEND_HIGH();
@@ -39,9 +39,33 @@ void uart_putc(char c){
   UART_SEND_LOW();
 }
 
-void uart_puts(char* s){
+void uart_puts(char* s) {
   while (*s) {
     uart_putc(*s);
     s++;
   }
 }
+
+// https://stackoverflow.com/questions/205529/passing-variable-number-of-arguments-around
+/*
+void DF(const char *format, ...) {
+  va_list vargs;
+  va_start(vargs, format);
+
+  char buf[50];
+  vsprintf(buf, format, vargs);
+  uart_puts(buf);
+  uart_puts("\r\n");
+
+  va_end(vargs);
+}
+
+void DL(char *buf) {
+  uart_puts(buf);
+  uart_puts("\r\n");
+}
+
+void D(char *buf) {
+  uart_puts(buf);
+}
+*/
