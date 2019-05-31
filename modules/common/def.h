@@ -86,6 +86,12 @@ inline static void led_on(char color) {
   }
 }
 
+inline static void led_on_all() {
+  led_on('r');
+  led_on('g');
+  led_on('b');
+}
+
 inline static int led_is_on(char color) {
   uint8_t val;
   if (color == 'g') {

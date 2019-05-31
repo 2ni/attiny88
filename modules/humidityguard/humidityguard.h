@@ -39,7 +39,8 @@ void deep_sleep(uint16_t mode);
 
 // sensor0: capacitive humidity sensor
 // sensor1-3: capactive touch sensors
-uint16_t measure(uint8_t sensor);
+uint16_t get_sensor_data_raw(uint8_t sensor);
+uint16_t get_sensor_data_calibrated(uint8_t sensor);
 
 // calibrate sensor and save values to offset
 // hardcode values as default
@@ -49,6 +50,12 @@ uint16_t humidity_optimum;
 uint16_t EEMEM ee_humidity_optimum;
 uint16_t get_average(uint8_t sensor);
 void calibrate();
+
+uint16_t value;
+uint8_t pressed; // bit 1 set if sensor 1 set, ...
+uint8_t countdown_started;
+uint8_t sleep_count;
+uint16_t humidity;
 
 // show humidity on led
 void show_humidity(uint16_t value);

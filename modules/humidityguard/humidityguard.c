@@ -24,6 +24,7 @@
  * PORTC |= (_BV(0) | _BV(2) | _BV(7));  // Set bits 0,2,7
  * PORTC &= ~(_BV(1) | _BV(2) | _BV(6)); // Clear bits 1,2,6
  * PORTC ^= (_BV(5) | _BV(3));           // Toggle bits 3,5
+ * if (PORTC & _BV(5))                   // is bit 5 set on PORTC
 
  * Sleep with bit manipulation
  * SMCR &= ~(_BV(SM1) | _BV(SM0)); // sleep mode "Idle"
@@ -201,7 +202,19 @@ void deep_sleep(uint16_t mode) {
  * 2 = TOUCH2
  * 3 = TOUCH3
  */
-uint16_t measure(uint8_t sensor) {
+uint16_t get_sensor_data_calibrated(uint8_t sensor) {
+  uint16_t m = get_sensor_data_raw(sensor);
+  return m < offset[sensor] ? 0 : m - offset[sensor];
+}
+
+/*
+ * measure sensor values (blocks CPU)
+ * 0 = MOIST_A
+ * 1 = TOUCH1
+ * 2 = TOUCH2
+ * 3 = TOUCH3
+ */
+uint16_t get_sensor_data_raw(uint8_t sensor) {
   uint8_t input;
   uint8_t input_int;
 
@@ -232,10 +245,9 @@ uint16_t measure(uint8_t sensor) {
     __asm__ __volatile__ ("nop");
   }
 
-  INT_SETUP |= _BV(TOUCH_PCIE); // enable pin change interrupts
-
   INT_CLEAR = (1<<TOUCH_PCIF); // clear any pending interrupt flag
   TOUCH_PCMSK |= _BV(input_int); // activate pin change interrupt on pin
+  INT_SETUP |= _BV(TOUCH_PCIE); // enable pin change interrupts
 
   start_timer1();
   TOUCH_DDR &= ~_BV(input);  // set as input -> capacity is charged via resistor
@@ -263,7 +275,7 @@ uint16_t get_average(uint8_t sensor) {
   uint16_t sum = 0;
   for (uint8_t i=0; i<14; i++) {
     if (i>5) {
-      sum += measure(sensor);
+      sum += get_sensor_data_raw(sensor);
     }
   }
   return sum/8;
@@ -289,7 +301,8 @@ void calibrate() {
  */
 void calibrate_humidity() {
   DL("calibrating humidity optimum");
-  humidity_optimum = get_average(0);
+  humidity_optimum = get_average(0) - offset[0];
+  if (humidity_optimum < 0) humidity_optimum = 0;
   eeprom_write_word(&ee_humidity_optimum, humidity_optimum);
   DF("humidity: %u", humidity_optimum);
 }
@@ -298,8 +311,8 @@ void show_humidity(uint16_t value) {
   led_off_all();
   char color;
 
-  if (value < humidity_optimum*.8) color = 'r';
-  else if (value > humidity_optimum*1.2) color = 'b';
+  if (value < humidity_optimum*.7) color = 'r';
+  else if (value > humidity_optimum*1.3) color = 'b';
   else color = 'g';
   led_on(color);
 }
@@ -342,94 +355,86 @@ int main(void) {
 
   sei();
 
-  uint16_t value[4];
-  static int pressed[4];
-
-  DL("***** Offsets *****");
   for (uint8_t i=0; i<4; i++) {
-    DF("sensor %u: %u", i, offset[i]);
+    DF("sensor %u: %u (%u)", i, offset[i], get_sensor_data_raw(i));
   }
-  uint16_t m = measure(0);
-  DF("humidity optimum: %u, current: %u", humidity_optimum, m < offset[0] ? 0 : m - offset[0]);
-  DL("***************************\n\n");
-
-  /*
-   * 0: sleep mode with regular wake-ups to check on sensors
-   * 1: activity (button pushed) -> do nothing
-   * 2: activity (button released) -> start countdown
-   * 3: activity countdown running
-   */
-  uint8_t mode = 0;
+  DF("hum opt: %u, cur: %u", humidity_optimum, get_sensor_data_calibrated(0));
+  DL("\n");
 
   while (1) {
+    // check touch sensors
+    for (uint8_t sensor=1; sensor<4; sensor++) {
+      // TODO called twice as start_timer0 somehow breaks 1st call with same sensor
+      get_sensor_data_calibrated(sensor);
+      value = get_sensor_data_calibrated(sensor);
 
-    for (int sensor=0; sensor<4; sensor++) {
-      uint16_t m = measure(sensor);
-      value[sensor] = m < offset[sensor] ? 0 : m - offset[sensor];
-      // DF("sensor %i: %u, (offset: %u)", sensor, value[sensor], offset[sensor]);
+      // touch x pushed
+      if ((pressed & _BV(sensor)) == 0 && value > TOUCH_THRESHOLD) {
+        pressed |= _BV(sensor);
+        DF("pushed touch %i: (%u)", sensor, value);
 
-      // check touch buttons ignore sensor0 which is moisture sensor
-      if ( sensor != 0) {
-        // any button pushed
-        if (value[sensor] > TOUCH_THRESHOLD) {
-          mode = 1;
-          // turn off led's if any button pressed execept touch1
-          // TODO what if 2 buttons pressed
-          if (sensor != 1) {
-            led_off_all();
-          }
+        if (sensor == 2) {
+          start_timer0(2000);
         }
+      }
 
-        if (pressed[sensor] == 0 && value[sensor] > TOUCH_THRESHOLD) {
-          pressed[sensor] = 1;
-          DF("pushed touch %i (value: %u) (measured: %u)", sensor, value[sensor], m);
+      // touch x released
+      if ((pressed & _BV(sensor)) && value < TOUCH_THRESHOLD) {
+        pressed &= !_BV(sensor);
+        DF("released touch %i (%u)", sensor, value);
+
+        if (sensor == 1) {
+          led_off_all();
+        } else if (sensor == 2) {
+          led_off_all();
+          timer_is_done = 0;
+          countdown_started = 0;
         }
+      }
 
-        if (sensor == 1 && value[1] > TOUCH_THRESHOLD) {
-          DF("humidity: %u", value[0]);
-
-          show_humidity(value[0]);
-        }
-
-        // release button
-        if (pressed[sensor] == 1 && value[sensor] < TOUCH_THRESHOLD) {
-          mode = 2;
-          pressed[sensor] = 0;
-          DF("released touch %i", sensor);
-          if (sensor == 3) {
-            calibrate_humidity();
-          }
-        }
+      // touch 1 pressed
+      if (pressed & _BV(1)) {
+        humidity = get_sensor_data_calibrated(0);
+        DF("hum: %u", humidity);
+        show_humidity(humidity);
       }
     }
 
-    // DF("\n************** mode: %u", mode);
-
-    if (mode == 0) {
-      // no activity - sleep mode with regular wake up to check on sensors
-      // flash current value on leds
-      show_humidity(value[0]);
-      deep_sleep(16);
-      led_off_all();
-      deep_sleep(4000);
-    } else if (mode == 1) {
-      // activity (some button pushed)
-      // do nothing (let the loop run)
-      stop_timer0(); // in case we were coming back from mode 3
-    } else if (mode == 2) {
-      // activity (button released)
-      // let the loop run
-      DL("starting countdown");
-      mode = 3;
+    // start sleep countdown
+    if (!countdown_started && !pressed) {
+      countdown_started = 1;
       start_timer0(3000);
-    } else if (mode == 3 && timer_is_done == 1) {
-      // countdown reached -> switch to sleep mode
-      stop_timer0();
-      timer_is_done = 0; // reset counter flag
-      mode = 0;
-      DL("sleep mode");
+      DL("countdown started");
     }
 
+    // ignore touch 2 here as it's handled separately
+    if (countdown_started && (pressed & _BV(1) || pressed & _BV(3))) {
+      countdown_started = 0;
+      stop_timer0();
+      timer_is_done = 0;
+      DL("countdown stopped");
+    }
+
+    // timeouts (outside loop)
+    if (timer_is_done) {
+      stop_timer0();
+      if (pressed & _BV(2)) {
+        // do not release timer_is_done to keep calibrating
+        // as long as button pressed
+        calibrate_humidity();
+        led_on_all();
+      } else {
+        // flash + sleep
+        if (++sleep_count > 8) {
+          humidity = get_sensor_data_calibrated(0);
+          show_humidity(humidity);
+          deep_sleep(16);
+          led_off_all();
+          sleep_count = 0;
+        }
+        deep_sleep(500);
+      }
+    }
   }
   return 0;
 }
