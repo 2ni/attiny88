@@ -83,6 +83,16 @@ ISR(WDT_vect) {
   sleep_enable();
 }
 
+/*
+ * interrupt for ad converter
+ */
+ISR(ADC_vect) {
+  cli();
+  uint8_t l = ADCL;
+  adc_value = ADCH<<8 | l;
+  sei();
+}
+
 void setup_timer0() {
   // setup timer0
   TIMSK0 |= _BV(OCIE0A); // compare match A int enable
@@ -317,6 +327,77 @@ void show_humidity(uint16_t value) {
   led_on(color);
 }
 
+/*
+ * voltage ADC7, mode = 1
+ * 220k/1220k @ 1.1v
+ * 1023 = 6.1v
+ * returns volts/10
+ *
+ * light ADC0, mode = 2
+ *
+ * temp ADC6, mode = 3
+ */
+uint16_t get_analog(char mode) {
+  ADMUX &= ~(_BV(REFS0) | _BV(ADLAR)); // internal 1.1v reference, left adjusted results
+
+  // clear input channels 1st (corresponds to mode = 2)
+  ADMUX &= ~(_BV(MUX3) | _BV(MUX2) | _BV(MUX1) | _BV(MUX0)); // ADC0, light
+  if (mode == 'l') {
+    // do nothing, already setup
+  } else if (mode == 't') {
+    ADMUX |= _BV(MUX2) | _BV(MUX1); // ADC6, temp
+  } else if (mode == 'v') {
+    ADMUX |= _BV(MUX2) | _BV(MUX1) | _BV(MUX0); // ADC7, voltage
+  } else {
+    return -1;
+  }
+
+  ADCSRA |= _BV(ADEN) | _BV(ADIE); // enable adc and interrupt
+  ADCSRA |= _BV(ADPS2) | _BV(ADPS1); // prescaler 64 -> 8MHz/64 = 125kHz
+  ADCSRA |= _BV(ADSC); // start conversion
+
+  // sleep & wait for conversion
+  // assume no other interrupt will wake up avr
+  set_sleep_mode(SLEEP_MODE_ADC);
+  sleep_enable();
+  sleep_mode();
+
+  ADCSRA &= ~_BV(ADEN); // disable adc
+  return adc_value;
+}
+
+int16_t convert_adc_voltage(uint16_t adc) {
+  return adc*61/1024;
+}
+
+/*
+ * conversion for temperature and light
+ * based on characteristics with interpolation
+ */
+int16_t convert_adc(uint16_t adc, adc_vector *characteristics, uint8_t size) {
+  uint8_t match = size-1;
+  for (uint8_t i=0; i<size; i++) {
+    if (adc > characteristics[i].adc) {
+      match = i;
+      break;
+    }
+  }
+
+  if (match==0) return characteristics[0].temp;
+  else if (match==size-1) return characteristics[size-1].temp;
+
+  uint16_t temp_start = characteristics[match-1].temp;
+  uint16_t temp_end = characteristics[match].temp;
+  int16_t adc_start = characteristics[match-1].adc;
+  int16_t adc_end = characteristics[match].adc;
+
+  int16_t r = (temp_end-temp_start) * (adc-adc_start);
+  int16_t d = adc_end-adc_start;
+  r /= d;
+
+  return temp_start+r;
+}
+
 int main(void) {
   DINIT(); // enable debug output
   DL("\n\nHello there");
@@ -325,7 +406,7 @@ int main(void) {
   humidity_optimum = eeprom_read_word(&ee_humidity_optimum);
   // 1st time call, save defaults to eeprom
   if (humidity_optimum == 0xffff) {
-    DL("writing default humidity optimum to eeprom");
+    DL("write hum opt");
     humidity_optimum = 1000;
     eeprom_write_word(&ee_humidity_optimum, humidity_optimum);
   }
@@ -335,7 +416,7 @@ int main(void) {
   }
   // 1st time call, save defaults to eeprom
   if (offset[0] == 0xffff) {
-    DL("writing default offsets to eeprom");
+    DL("write offsets");
     uint16_t o[4] = {166, 57, 68, 65};
     for (uint8_t i=0; i<4; i++) {
       offset[i] = o[i];
@@ -431,6 +512,19 @@ int main(void) {
           deep_sleep(16);
           led_off_all();
           sleep_count = 0;
+          uint16_t a = get_analog('v');
+          DF("- %uv", convert_adc_voltage(a));
+
+          a = get_analog('t');
+          DF("- %udeg", convert_adc(a, temp_vector, temp_vector_size));
+
+          DDRC |= _BV(EN_LIGHT); // enable as output
+          PORTC |= _BV(EN_LIGHT); // set high
+          a = get_analog('l');
+          PORTC &= ~_BV(EN_LIGHT); // set low
+          DF("- %ulux", convert_adc(a, light_vector, light_vector_size));
+
+
         }
         deep_sleep(500);
       }

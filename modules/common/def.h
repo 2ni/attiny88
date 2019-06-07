@@ -51,12 +51,12 @@
 
 #define MOIST_B PA2   // qtouch
 
-#define TEMP PA0      // 0°=0.81v, 10°=0.55v, 25°=0.3v, 50°=0.11v
-#define BAT PA1       // battery (0.76v = 4.2v, 0.5v = 2.8v)
+#define TEMP PA0      // ADC6, 0°=0.81v, 10°=0.55v, 25°=0.3v, 50°=0.11v
+#define BAT PA1       // ADC7, battery (0.76v = 4.2v, 0.5v = 2.8v)
 #define PWM PB1       // buzzer
 #define CLKO PB0      // clock out
 #define EN_LIGHT PC1
-#define LIGHT PC0     // dark: 1.03v, light: 0.03v
+#define LIGHT PC0     // ADC0, dark: 1.03v, light: 0.03v
 
 #define EN_CUR PC7    // enable current measurement
 #define CUR PC2       // 2.15mA/bit, 2.2A=1.1v
