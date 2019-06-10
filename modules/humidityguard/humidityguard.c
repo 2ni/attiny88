@@ -36,10 +36,10 @@
  * / TODO green led = optimum, blue = too much water, red = not enough water
  * / TODO check deep_sleep power consumption ~19uA
  * / TODO save calibration(s) to sram
- * TODO calibrate only happens if TOUCH3 pressed longer than 2sec
+ * / TODO calibrate only happens if TOUCH2 pressed longer than 2sec
  * / TODO status LED's are shown until device goes to sleep or any other button pressed
  * TODO attiny + oled
- * TODO light/temperature sensors adc
+ * / TODO light/temperature sensors adc
  * TODO waterproof capacitive touches
  *
  * https://github.com/tibounise/SSD1306-AVR
@@ -197,9 +197,9 @@ void deep_sleep(uint16_t mode) {
   sleep_enable();
   sei();
 
-  DL("going to sleep");
+  // DL("sleep");
   sleep_mode(); // sleep baby, sleep!
-  DL("I'm back");
+  // DL("back");
 
   sleep_disable();
   power_adc_enable();
@@ -310,11 +310,11 @@ void calibrate() {
  * (optimal value)
  */
 void calibrate_humidity() {
-  DL("calibrating humidity optimum");
+  DL("calibrating hum");
   humidity_optimum = get_average(0) - offset[0];
   if (humidity_optimum < 0) humidity_optimum = 0;
   eeprom_write_word(&ee_humidity_optimum, humidity_optimum);
-  DF("humidity: %u", humidity_optimum);
+  DF("hum: %u‰", convert_hum_to_relative(humidity_optimum));
 }
 
 void show_humidity(uint16_t value) {
@@ -398,6 +398,14 @@ int16_t convert_adc(uint16_t adc, adc_vector *characteristics, uint8_t size) {
   return temp_start+r;
 }
 
+/*
+ * 1000% = 2000
+ * returns permille
+ */
+uint16_t convert_hum_to_relative(uint16_t hum) {
+  return hum/2;
+}
+
 int main(void) {
   DINIT(); // enable debug output
   DL("\n\nHello there");
@@ -476,7 +484,7 @@ int main(void) {
       // touch 1 pressed
       if (pressed & _BV(1)) {
         humidity = get_sensor_data_calibrated(0);
-        DF("hum: %u", humidity);
+        DF("hum: %u‰", convert_hum_to_relative(humidity));
         show_humidity(humidity);
       }
     }
@@ -512,6 +520,7 @@ int main(void) {
           deep_sleep(16);
           led_off_all();
           sleep_count = 0;
+          DF("- %u‰ (%u)", convert_hum_to_relative(humidity), humidity);
           uint16_t a = get_analog('v');
           DF("- %uv", convert_adc_voltage(a));
 
@@ -522,9 +531,7 @@ int main(void) {
           PORTC |= _BV(EN_LIGHT); // set high
           a = get_analog('l');
           PORTC &= ~_BV(EN_LIGHT); // set low
-          DF("- %ulux", convert_adc(a, light_vector, light_vector_size));
-
-
+          DF("- %ulux\n", convert_adc(a, light_vector, light_vector_size));
         }
         deep_sleep(500);
       }
