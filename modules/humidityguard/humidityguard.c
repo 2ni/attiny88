@@ -371,6 +371,15 @@ int16_t convert_adc_voltage(uint16_t adc) {
 }
 
 /*
+ * normalize adc value to given power voltage
+ * ie 3.3v/x
+ * use 33 for precision
+ */
+uint16_t norm_adc_voltage(uint16_t adc, uint16_t voltage) {
+  return adc*33/voltage;
+}
+
+/*
  * conversion for temperature and light
  * based on characteristics with interpolation
  */
@@ -522,16 +531,17 @@ int main(void) {
           sleep_count = 0;
           DF("- %u‰ (%u)", convert_hum_to_relative(humidity), humidity);
           uint16_t a = get_analog('v');
-          DF("- %uv", convert_adc_voltage(a));
+          uint16_t voltage = convert_adc_voltage(a);
+          DF("- %uv", voltage);
 
           a = get_analog('t');
-          DF("- %udeg", convert_adc(a, temp_vector, temp_vector_size));
+          DF("- %udeg", convert_adc(norm_adc_voltage(a, voltage)*39/43, temp_vector, temp_vector_size));
 
           DDRC |= _BV(EN_LIGHT); // enable as output
           PORTC |= _BV(EN_LIGHT); // set high
           a = get_analog('l');
           PORTC &= ~_BV(EN_LIGHT); // set low
-          DF("- %ulux\n", convert_adc(a, light_vector, light_vector_size));
+          DF("- %ulux\n", convert_adc(norm_adc_voltage(a, voltage), light_vector, light_vector_size));
         }
         deep_sleep(500);
       }
