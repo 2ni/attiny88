@@ -4,14 +4,14 @@
 ft: flash terminal
 
 compile:
-	pio run
+	@pio run
 
 clean:
-	platformio run --target clean
+	@pio run --target clean
 
-flash:
+flash: compile
 	@avrdude -p t88 -c usbtiny -U flash:w:.pioenvs/attiny88/firmware.hex:i -F -P usb
-	#pio run -t program doesn't work anymore
+	@#pio run -t program doesn't work anymore
 
 check:
 	@avrdude -c usbtiny -p t88 -P usb -v
