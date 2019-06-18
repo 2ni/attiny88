@@ -20,23 +20,26 @@ void oled_set_line(int8_t line);
 void oled_set_col(uint8_t col);
 void oled_set_pos(uint8_t line, uint8_t col);
 void oled_char(char cc);
+void oled_sprite(uint8_t cc[]);
 void oled_text(const char str[]);
 void oled_dot(uint8_t xx, uint8_t yy);
 void oled_ddot(uint8_t xx, uint8_t yy);
 void oled_hline(uint8_t yy);
 void oled_vline(uint8_t xx);
-
-
 void oled_doubleh();
 void oled_simpleh();
 
-#define  Sprite(tt) \
-  WrStaData(); \
+// used as define as can't pass pointer of array and use sizeof
+#define oled_sprite(tt) \
+  oled_start_data(); \
   for (uint8_t i=0; i<sizeof tt; i++) { \
-  Write (pgm_read_byte(&tt[i])); } Stop()
+  twi_write(pgm_read_byte(&tt[i])); } twi_stop()
+
+/*
 #define MySprite(tt) \
-  WrStaData(); \
+  oled_start_data(); \
   for (uint8_t i=0; i<sizeof tt; i++) { \
   Write (tt[i]); } Write(0); Stop();
+*/
 
 #endif

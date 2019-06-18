@@ -4,6 +4,7 @@
 #include "oled.h"
 #include "twi.h"
 #include "fonts.h"
+
 uint8_t oled_init_cmds[] = { 0xae, 0xd5, 0x80, 0xa8, 63, \
         0xD3, 0x0, 0x40, 0x8d, 0x14, 0x20, 0x00, 0xa1, \
         0xc8, 0xDA, 0x12, 0x81, 0xcf, 0xd9, 0xf1, 0xdb, \
@@ -79,14 +80,28 @@ void oled_set_col(uint8_t col) {
   current_col = col;
 }
 
-void oled_set_pos (uint8_t line, uint8_t col) {
+/*
+ * line: 0-7
+ * col: 0-124 (or 123 depending on char size)
+ */
+void oled_set_pos(uint8_t line, uint8_t col) {
   oled_set_line(line);
   oled_set_col(col);
 //  ptMap = (128*current_line)+current_col;
 }
 
 void oled_char(char cc) {
-  cc&=0x7F;
+  oled_start_data();
+  for (uint8_t i=0; i<5; i++) {
+    twi_write(pgm_read_byte(&font5x7[((cc-32)*5)+i])); // start at pos 32 ascii table, 5 bytes
+  }
+  twi_write(0);
+  twi_stop();
+}
+
+/*
+void oled_char(char cc) {
+  cc &= 0x7F; // char 0-127
   switch (cc/32) {
     case 0:
       // next line
@@ -99,7 +114,7 @@ void oled_char(char cc) {
     case 1:  // codes 32-
       oled_start_data();
       for (uint8_t i=0; i<4; i++) {
-        twi_write(pgm_read_byte(&taNum[((cc-32)*4)+i]));
+        twi_write(pgm_read_byte(&taNum[((cc-32)*4)+i])); // start at pos 32 ascii table, 4 bytes
       }
       twi_write(0);
       twi_stop();
@@ -107,7 +122,7 @@ void oled_char(char cc) {
     case 2:  // codes 64-
       oled_start_data();
       for (uint8_t i=0; i<5; i++) {
-        twi_write(pgm_read_byte(&taMaj[((cc-64)*5)+i]));
+        twi_write(pgm_read_byte(&taMaj[((cc-64)*5)+i])); // start at pos 64 ascii table, 5 bytes
       }
       twi_write(0);
       twi_stop();
@@ -122,6 +137,7 @@ void oled_char(char cc) {
       break;
   }
 }
+*/
 
 void oled_text(const char str[]) {
   for (uint8_t i=0; i< strlen(str); i++) {
@@ -132,8 +148,8 @@ void oled_text(const char str[]) {
 // yy 0-64 -> 0-7
 void oled_dot(uint8_t xx,uint8_t yy) {
   oled_set_pos(yy/8,xx);
-  oled_start_data ();
-  twi_write(1<<yy%8);
+  oled_start_data();
+  twi_write(1<<yy%8); // deletes all other bits
   twi_stop();
 }
 
