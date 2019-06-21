@@ -1,9 +1,14 @@
-#ifndef FONTS_h
-#define FONTS_h
+#ifndef FONTSMALL_h
+#define FONTSMALL_h
 
 // https://github.com/freetronics/FTOLED/blob/master/fonts/SystemFont5x7.h
 // use static to only 1 copy allowed for the entire program
 // https://stackoverflow.com/questions/17764661/multiple-definition-of-linker-error
+//
+// doc: https://www.mikrocontroller.net/topic/208087
+//
+// alternatives:
+//  https://github.com/DavidDiPaola/font-vincent
 static const uint8_t font5x7[] PROGMEM = {
   0x00, 0x00, 0x00, 0x00, 0x00,// (space)
   0x00, 0x00, 0x5F, 0x00, 0x00,// !
