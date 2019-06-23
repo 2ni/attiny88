@@ -47,6 +47,7 @@
  */
 
 #include "humidityguard.h"
+#include "oled.h"
 
 // pin interrupt
 ISR(TOUCH_INT_VECT) {
@@ -317,7 +318,7 @@ void calibrate_humidity() {
   DF("hum: %u‰", convert_hum_to_relative(humidity_optimum));
 }
 
-void show_humidity(uint16_t value) {
+void show_humidity_led(uint16_t value) {
   led_off_all();
   char color;
 
@@ -376,7 +377,8 @@ int16_t convert_adc_voltage(uint16_t adc) {
  * use 33 for precision
  */
 uint16_t norm_adc_voltage(uint16_t adc, uint16_t voltage) {
-  return adc*33/voltage;
+  return adc;
+  // return adc*33/voltage;
 }
 
 /*
@@ -413,6 +415,41 @@ int16_t convert_adc(uint16_t adc, adc_vector *characteristics, uint8_t size) {
  */
 uint16_t convert_hum_to_relative(uint16_t hum) {
   return hum/2;
+}
+
+/*
+ * convert uint16_t 203 to char "20.3"
+ * buf must be buf[5]
+ *
+ */
+void convert_int_to_char(char *buf, uint16_t measure) {
+  // show leading 0 if < 10
+  if (measure < 10) {
+    buf[0] = '0';
+    buf[1] = '.';
+    buf[2] = measure+'0'; // convert to char
+    return;
+  }
+
+  sprintf(buf, "%u", measure);
+  for (uint8_t i=0; i<4; i++) {
+    if (buf[i]==0) {
+      buf[i] = buf[i-1];
+      buf[i-1] = '.';
+      break;
+    }
+  }
+}
+
+/*
+ * show value at position line/col
+ */
+void show_measure_oled(uint16_t value, uint8_t line, uint8_t col) {
+  char buf[5] = {0};
+  convert_int_to_char(buf, value);
+  oled_clear_part(40, line, col, 'l');
+  oled_set_pos(line, col);
+  oled_text(buf, 'l');
 }
 
 int main(void) {
@@ -456,8 +493,32 @@ int main(void) {
   for (uint8_t i=0; i<4; i++) {
     DF("sensor %u: %u (%u)", i, offset[i], get_sensor_data_raw(i));
   }
-  DF("hum opt: %u, cur: %u", humidity_optimum, get_sensor_data_calibrated(0));
+
+  humidity = get_sensor_data_calibrated(0);
+
+  // base display data / grid
+  oled_setup();
+
+  oled_hline(32);
+  oled_vline(64);
+
+  oled_set_pos(0, 0);
+  oled_text("HUMIDITY", 's');
+  oled_set_pos(0, 67);
+  oled_text("THRESHOLD", 's');
+  show_measure_oled(convert_hum_to_relative(humidity_optimum), 1, 67);
+
+  oled_set_pos(5, 0);
+  oled_text("TEMP", 's');
+  oled_set_pos(5, 67);
+  oled_text("BAT", 's');
+
+  show_measure_oled(convert_hum_to_relative(humidity), 1, 0);
+
+  DF("hum opt: %u, cur: %u", humidity_optimum, humidity);
   DL("\n");
+
+  uint16_t cycle=0;
 
   while (1) {
     // check touch sensors
@@ -484,6 +545,8 @@ int main(void) {
         if (sensor == 1) {
           led_off_all();
         } else if (sensor == 2) {
+          calibrate_humidity();
+          show_measure_oled(convert_hum_to_relative(humidity_optimum), 1, 67);
           led_off_all();
           timer_is_done = 0;
           countdown_started = 0;
@@ -491,18 +554,32 @@ int main(void) {
       }
 
       // touch 1 pressed
+      /*
       if (pressed & _BV(1)) {
         humidity = get_sensor_data_calibrated(0);
         DF("hum: %u‰", convert_hum_to_relative(humidity));
-        show_humidity(humidity);
+        show_humidity_led(humidity);
+        show_measure_oled(humidity, 1, 0);
       }
+      */
     }
+    // end for
 
     // start sleep countdown
     if (!countdown_started && !pressed) {
       countdown_started = 1;
       start_timer0(3000);
       DL("countdown started");
+    }
+
+    // show values on oled when any button pressed
+    // only show update every x cycle
+    if (cycle++ > 100) {
+      oled_on();
+      humidity = get_sensor_data_calibrated(0);
+      show_humidity_led(humidity);
+      show_measure_oled(convert_hum_to_relative(humidity), 1, 0);
+      cycle = 0;
     }
 
     // ignore touch 2 here as it's handled separately
@@ -519,13 +596,13 @@ int main(void) {
       if (pressed & _BV(2)) {
         // do not release timer_is_done to keep calibrating
         // as long as button pressed
-        calibrate_humidity();
         led_on_all();
       } else {
         // flash + sleep
         if (++sleep_count > 8) {
+          oled_off();
           humidity = get_sensor_data_calibrated(0);
-          show_humidity(humidity);
+          show_humidity_led(humidity);
           deep_sleep(16);
           led_off_all();
           sleep_count = 0;
@@ -535,7 +612,7 @@ int main(void) {
           DF("- %uv", voltage);
 
           a = get_analog('t');
-          DF("- %udeg", convert_adc(norm_adc_voltage(a, voltage)*39/43, temp_vector, temp_vector_size));
+          DF("- %udeg", convert_adc(norm_adc_voltage(a, voltage), temp_vector, temp_vector_size));
 
           DDRC |= _BV(EN_LIGHT); // enable as output
           PORTC |= _BV(EN_LIGHT); // set high
