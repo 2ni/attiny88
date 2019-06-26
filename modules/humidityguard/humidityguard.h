@@ -59,6 +59,7 @@ uint8_t pressed = {0}; // bit 1 set if sensor 1 set, ...
 uint8_t pressed_prev = {0}; // state one cycle before
 uint8_t pressed_changed = {0}; // state if some sensor changed
 uint8_t countdown_started;
+uint8_t oled_is_on = 1;
 uint8_t sleep_count;
 uint16_t humidity;
 
