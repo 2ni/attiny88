@@ -316,16 +316,40 @@ void calibrate_humidity() {
   if (humidity_optimum < 0) humidity_optimum = 0;
   eeprom_write_word(&ee_humidity_optimum, humidity_optimum);
   DF("hum: %u‰", convert_hum_to_relative(humidity_optimum));
+  #ifdef OLED
+    show_measure_oled(convert_hum_to_relative(humidity_optimum), 1, 67);
+  #endif
 }
 
-void show_humidity_led(uint16_t value) {
-  led_off_all();
+/*
+ * show humidity
+ * on led if show_led set
+ * on oled if show_oled set and available
+ *
+ */
+void show_humidity(uint8_t show_led, uint8_t show_oled) {
   char color;
 
-  if (value < humidity_optimum*.7) color = 'r';
-  else if (value > humidity_optimum*1.3) color = 'b';
-  else color = 'g';
-  led_on(color);
+  // sometimes 1st values are crap
+  get_sensor_data_calibrated(0);
+  humidity = get_sensor_data_calibrated(0);
+
+  if (show_led) {
+    led_off_all();
+    if (humidity < humidity_optimum*.7) color = 'r';
+    else if (humidity > humidity_optimum*1.3) color = 'b';
+    else color = 'g';
+    led_on(color);
+  }
+
+  #ifdef OLED
+    if (show_oled) {
+      if (count_oled-- == 0) {
+        count_oled = 50;
+        show_measure_oled(convert_hum_to_relative(humidity), 1, 0);
+      }
+    }
+  #endif
 }
 
 /*
@@ -452,16 +476,14 @@ void show_measure_oled(uint16_t value, uint8_t line, uint8_t col) {
   oled_text(buf, 'l');
 }
 
-uint8_t sensor_released(uint8_t sensor) {
-  return (pressed_changed & _BV(sensor)) && (pressed_prev & _BV(sensor));
-}
-
-uint8_t sensor_initial_push(uint8_t sensor) {
-  return (pressed_changed & _BV(sensor)) && (pressed & _BV(sensor));
-}
-
-uint8_t sensor_pushing(uint8_t sensor) {
-  return pressed & _BV(sensor);
+/*
+ * return true if sensor pushed
+ * 0: if any sensor pushed
+ *
+ */
+uint8_t sensor_active(uint8_t sensor) {
+  if (sensor) return pressed & _BV(sensor);
+  else return pressed;
 }
 
 
@@ -537,7 +559,7 @@ int main(void) {
     // check touch sensors
     pressed = 0;
     for (uint8_t sensor=1; sensor<4; sensor++) {
-      // TODO called twice as start_timer0 somehow breaks 1st call with same sensor
+      // somehow 1st values are sometimes crap
       get_sensor_data_calibrated(sensor);
       value = get_sensor_data_calibrated(sensor);
 
@@ -546,103 +568,95 @@ int main(void) {
       }
     }
 
-    // save which sensors changed state
-    pressed_changed = pressed ^ pressed_prev;
+    last_mode = mode;
+    mode = new_mode;
+    switch(mode) {
+      // sleep
+      case 0:
 
-    // any countdown timeout
-    if (timer_is_done) {
-      DL("timeout");
-      stop_timer0();
-
-      // calibration mode ending
-      if (sensor_released(2)) {
-        calibrate_humidity();
-        show_measure_oled(convert_hum_to_relative(humidity_optimum), 1, 67);
-        led_off_all();
-        timer_is_done = 0;
-        countdown_started = 0;
-      }
-      // calibration mode running
-      else if (sensor_pushing(2)) {
-        // do not release timer_is_done here to keep calibrating
-        // as long as button pressed
-        led_on_all();
-      }
-      // sleep mode running
-      else {
-        // flash + sleep
-        if (sleep_count-- == 0) {
+        // turn off oled when entering mode 0
+        if (last_mode != 0) {
+          led_off_all();
           #ifdef OLED
-            if (oled_is_on == 1) {
-              DL("o off");
-              oled_off();
-              oled_is_on = 0;
-            }
+           oled_off();
           #endif
-          countdown_started = 1;
-          humidity = get_sensor_data_calibrated(0);
-          show_humidity_led(humidity);
+        }
+
+        // flash + sleep
+        if (count_sleep-- == 0) {
+          show_humidity(1, 0);
           deep_sleep(16);
           led_off_all();
-          sleep_count = 8;
+          count_sleep = 8;
         }
         deep_sleep(500);
-      }
-    }
 
-    // no sensor pressed -> start sleep countdown
-    // sets timer_is_done = 0
-    if (!pressed && !countdown_started) {
-      led_off_all();
-      countdown_started = 1;
-      start_timer0(3000);
-      DL("ctd start");
-    }
+        if (sensor_active(0)) new_mode = 1;
+        break;
+      // measure
+      case 1:
+        show_humidity(1, 1);
 
-    // sensor 2 was pushed -> start calibration countdown
-    if (sensor_initial_push(2)) {
-      start_timer0(2000);
-      countdown_started = 1;
-      DL("ctd 2 start");
-    }
+        // turn on oled when coming from sleep mode
+        #ifdef OLED
+          if (last_mode == 0) oled_on();
+        #endif
 
-    // stop any countdown
-    if (pressed && countdown_started) {
-      #ifdef OLED
-        if (!oled_is_on) {
-          oled_is_on = 1;
-          DL("o on");
-          oled_on();
+        if (last_mode == 3 || last_mode == 2) { stop_timer0(); DL("stop timer");}
+
+        if (sensor_active(2) && !sensor_active(1) && !sensor_active(3)) new_mode = 3;
+        else if (!sensor_active(0)) new_mode = 2;
+        break;
+      // countdown to sleep
+      case 2:
+        show_humidity(1, 1);
+
+        // start timer when entering mode 3
+        if (last_mode != 2) start_timer0(3000);
+
+        if (timer_is_done) {
+          timer_is_done = 0;
+          new_mode = 0;
+          oled_off();
         }
-      #endif
-      countdown_started = 0;
-      sleep_count = 0;
-      cycle = 0;
-      // ignore touch 2 here as it's handled separately
-      if (!sensor_pushing(2)) {
-        stop_timer0();
-        timer_is_done = 0;
-        DL("ctd stop");
-      }
-    }
+        else if (sensor_active(0)) new_mode = 1;
+        break;
+      // countdown to calibration
+      case 3:
+        show_humidity(1, 1);
 
-    // show values on oled when any button pressed
-    // only show update every x cycle
-    if (oled_is_on) {
-      humidity = get_sensor_data_calibrated(0);
-      // show if any sensor pushed, except if in calibration mode
-      if (pressed && (!sensor_pushing(2) || !timer_is_done)) {
-        show_humidity_led(humidity);
-      }
-      #ifdef OLED
-        if (cycle-- == 0) {
-          cycle = 100;
-          show_measure_oled(convert_hum_to_relative(humidity), 1, 0);
+        // start timer when entering mode 3
+        if (last_mode != 3) {start_timer0(2000); DL("start timer");}
+
+        if (timer_is_done) {
+          DL("timer done");
+          new_mode = 4;
+          timer_is_done = 0;
         }
-      #endif
+        else if (!sensor_active(2)) {new_mode = 1; DL("sens2 inactive");}
+        break;
+      // calibrating
+      case 4:
+        // show on oled only
+        show_humidity(0,1);
+
+        // stop timer when entering mode 4
+        if (last_mode != 4) {
+          stop_timer0();
+          led_on_all();
+        }
+
+        if (sensor_active(1) ||sensor_active(3)) new_mode = 1;
+        else if (!sensor_active(2)) new_mode = 5;
+        break;
+      // save calibration data
+      case 5:
+        calibrate_humidity();
+        led_off_all();
+        new_mode = 2;
+        break;
     }
 
-    pressed_prev = pressed;
   }
   return 0;
 }

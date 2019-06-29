@@ -52,16 +52,15 @@ uint16_t get_average(uint8_t sensor);
 void calibrate();
 
 uint16_t value;
-#ifdef OLED
-  uint16_t cycle = 0;
-#endif
 uint8_t pressed = {0}; // bit 1 set if sensor 1 set, ...
-uint8_t pressed_prev = {0}; // state one cycle before
-uint8_t pressed_changed = {0}; // state if some sensor changed
-uint8_t countdown_started;
-uint8_t oled_is_on = 1;
-uint8_t sleep_count;
+uint8_t count_sleep;
+#ifdef OLED
+  uint8_t count_oled;
+#endif
 uint16_t humidity;
+uint8_t mode = 1;
+uint8_t last_mode = 1;
+uint8_t new_mode = 1;
 
 typedef struct {
   int16_t temp;
@@ -106,15 +105,13 @@ int16_t convert_adc_voltage(uint16_t adc);
 void convert_int_to_char(char *buf, uint16_t measure);
 
 // show humidity on led
-void show_humidity_led(uint16_t value);
+void show_humidity(uint8_t show_led, uint8_t show_oled);
 void show_measure_oled(uint16_t value, uint8_t line, uint8_t col);
 uint16_t convert_hum_to_relative(uint16_t raw);
 uint16_t norm_adc_voltage(uint16_t adc, uint16_t voltage);
 
 // sensor handling
-uint8_t sensor_released(uint8_t sensor);
-uint8_t sensor_initial_push(uint8_t sensor);
-uint8_t sensor_pushing(uint8_t sensor);
+uint8_t sensor_active(uint8_t sensor);
 
 int main(void);
 
