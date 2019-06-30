@@ -71,22 +71,24 @@ typedef struct {
 // https://docs.google.com/spreadsheets/d/1a3KXmudcpWfhWYVWFE6oMQExikhBC05OGW9-anG_0Dc/edit#gid=0
 // MF52 LDR temperature resistor
 // 0.1°: adc value
-static uint8_t temp_vector_size = 13;
-static adc_vector temp_vector[] = {
-  {-80, 1018},
-  {-50,  913},
-  {0,    756},
-  {50,   623},
-  {100,  510},
-  {150,  418},
-  {200,  341},
-  {250,  279},
-  {300,  229},
-  {350,  188},
-  {400,  155},
-  {450,  128},
-  {500,  106},
-};
+#ifdef OLED
+  static uint8_t temp_vector_size = 13;
+  static adc_vector temp_vector[] = {
+    {-80, 1018},
+    {-50,  913},
+    {0,    756},
+    {50,   623},
+    {100,  510},
+    {150,  418},
+    {200,  341},
+    {250,  279},
+    {300,  229},
+    {350,  188},
+    {400,  155},
+    {450,  128},
+    {500,  106},
+  };
+#endif
 // based on https://datasheet.lcsc.com/szlcsc/Shenzhen-Jing-Chuang-He-Li-Tech-GL3528-10-20K_C10082.pdf
 // GL3528 light resistor
 // in series with 220k on 3.3v (1.1v reference)
