@@ -214,6 +214,8 @@ void deep_sleep(uint16_t mode) {
  * 3 = TOUCH3
  */
 uint16_t get_sensor_data_calibrated(uint8_t sensor) {
+  // sometimes 1st values are crap
+  get_sensor_data_raw(sensor);
   uint16_t m = get_sensor_data_raw(sensor);
   return m < offset[sensor] ? 0 : m - offset[sensor];
 }
@@ -330,8 +332,6 @@ void calibrate_humidity() {
 void show_humidity(uint8_t show_led, uint8_t show_oled) {
   char color;
 
-  // sometimes 1st values are crap
-  get_sensor_data_calibrated(0);
   humidity = get_sensor_data_calibrated(0);
 
   if (show_led) {
@@ -346,21 +346,28 @@ void show_humidity(uint8_t show_led, uint8_t show_oled) {
     if (show_oled) {
       if (count_oled-- == 0) {
         count_oled = 50;
+        // show humidity
         show_measure_oled(convert_hum_to_relative(humidity), 1, 0);
+
+        // show voltage
+        show_measure_oled(convert_adc_voltage(get_analog('v')), 6, 67);
+
+        // show temperature
+        show_measure_oled(convert_adc(get_analog('t'), temp_vector, temp_vector_size), 6, 0);
       }
     }
   #endif
 }
 
 /*
- * voltage ADC7, mode = 1
+ * voltage ADC7, mode = 'v'
  * 220k/1220k @ 1.1v
  * 1023 = 6.1v
  * returns volts/10
  *
- * light ADC0, mode = 2
+ * light ADC0, mode = 'l'
  *
- * temp ADC6, mode = 3
+ * temp ADC6, mode = 't'
  */
 uint16_t get_analog(char mode) {
   ADMUX &= ~(_BV(REFS0) | _BV(ADLAR)); // internal 1.1v reference, left adjusted results
@@ -467,6 +474,7 @@ void convert_int_to_char(char *buf, uint16_t measure) {
 
 /*
  * show value at position line/col
+ * value is factor 10, ie 12 is shown as 1.2
  */
 void show_measure_oled(uint16_t value, uint8_t line, uint8_t col) {
   char buf[5] = {0};
@@ -550,6 +558,13 @@ int main(void) {
     oled_text("TEMP", 's');
     oled_set_pos(5, 67);
     oled_text("BAT", 's');
+
+    // show voltage
+    show_measure_oled(convert_adc_voltage(get_analog('v')), 6, 67);
+
+    // show temp
+    show_measure_oled(convert_adc(get_analog('t'), temp_vector, temp_vector_size), 6, 0);
+
   #endif
 
   DF("hum opt: %u, cur: %u", humidity_optimum, humidity);
@@ -559,8 +574,6 @@ int main(void) {
     // check touch sensors
     pressed = 0;
     for (uint8_t sensor=1; sensor<4; sensor++) {
-      // somehow 1st values are sometimes crap
-      get_sensor_data_calibrated(sensor);
       value = get_sensor_data_calibrated(sensor);
 
       if (value > TOUCH_THRESHOLD) {
@@ -602,7 +615,7 @@ int main(void) {
           if (last_mode == 0) oled_on();
         #endif
 
-        if (last_mode == 3 || last_mode == 2) { stop_timer0(); DL("stop timer");}
+        if (last_mode == 3 || last_mode == 2) stop_timer0();
 
         if (sensor_active(2) && !sensor_active(1) && !sensor_active(3)) new_mode = 3;
         else if (!sensor_active(0)) new_mode = 2;
@@ -626,14 +639,14 @@ int main(void) {
         show_humidity(1, 1);
 
         // start timer when entering mode 3
-        if (last_mode != 3) {start_timer0(2000); DL("start timer");}
+        if (last_mode != 3) start_timer0(2000);
 
         if (timer_is_done) {
           DL("timer done");
           new_mode = 4;
           timer_is_done = 0;
         }
-        else if (!sensor_active(2)) {new_mode = 1; DL("sens2 inactive");}
+        else if (!sensor_active(2)) new_mode = 1;
         break;
       // calibrating
       case 4:

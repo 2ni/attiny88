@@ -66,6 +66,7 @@ typedef struct {
   int16_t temp;
   uint16_t adc;
 } adc_vector;
+
 // based on https://datasheet.lcsc.com/szlcsc/Nanjing-Shiheng-Elec-MF52A1104F3950-P209-15A_C13424.pdf
 // https://docs.google.com/spreadsheets/d/1a3KXmudcpWfhWYVWFE6oMQExikhBC05OGW9-anG_0Dc/edit#gid=0
 // MF52 LDR temperature resistor
