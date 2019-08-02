@@ -17,6 +17,13 @@ The software works as a [state machine](humidityguard-state-machine.jpg) and can
 
 See the [pcb folder](pcb) for schematics.
 
+# Setup software
+Run the following to activate the necessary files.
+This command symlinks the files to the folder src/
+```
+./activate.py modules/humidityguard
+```
+
 # Flash software
 Connect board with USBTinyISP to computer and run
 ```
@@ -28,3 +35,7 @@ Ensure tart serial console
 ```
 make debug
 ```
+
+# Important files
+- modules/common/def.h: IO definitions for the board and common functions
+- modules/common/avr_print.*: Debug software to print to serial terminal
