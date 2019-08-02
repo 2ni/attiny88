@@ -10,7 +10,7 @@ clean:
 	@pio run --target clean
 
 flash: compile
-	@avrdude -p t88 -c usbtiny -U flash:w:.pioenvs/attiny88/firmware.hex:i -F -P usb
+	@avrdude -p t88 -c usbtiny -U flash:w:.pio/build/attiny88/firmware.hex:i -F -P usb
 	@#pio run -t program doesn't work anymore
 
 check:
