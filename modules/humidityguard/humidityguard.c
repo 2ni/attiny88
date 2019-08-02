@@ -40,6 +40,11 @@
  * / TODO status LED's are shown until device goes to sleep or any other button pressed
  * / TODO attiny + oled
  * / TODO light/temperature sensors adc
+ * / TODO minimize font size
+ * / TODO update README
+ * TODO implement pump feature
+ * TODO graphically show humidity
+ * TODO show battery status graphically
  * TODO waterproof capacitive touches
  *
  * https://github.com/tibounise/SSD1306-AVR
