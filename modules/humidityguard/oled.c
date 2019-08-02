@@ -4,7 +4,7 @@
 #include "oled.h"
 #include "twi.h"
 #include "font_small.h"
-#include "font_large.h"
+#include "font_large_digitonly.h"
 
 uint8_t oled_init_cmds[] = { 0xae, 0xd5, 0x80, 0xa8, 63, \
         0xD3, 0x0, 0x40, 0x8d, 0x14, 0x20, 0x00, 0xa1, \
@@ -118,12 +118,16 @@ uint8_t oled_char_small(char cc) {
  * takes 2 line height
  */
 uint8_t oled_char_large(char cc) {
+  // read start char and length
+  uint8_t char_start = pgm_read_byte(&arial[0]);
+  uint8_t char_count = pgm_read_byte(&arial[1]);
+
   // read jumping data
-  uint8_t msb = pgm_read_byte(&arial[(cc-33)*2]);
-  uint8_t lsb = pgm_read_byte(&arial[(cc-33)*2+1]);
+  uint8_t msb = pgm_read_byte(&arial[(cc-char_start)*2]);
+  uint8_t lsb = pgm_read_byte(&arial[(cc-char_start)*2+1]);
   uint16_t from = (lsb | (msb<<8));
-  msb = pgm_read_byte(&arial[(cc-32)*2]);
-  lsb = pgm_read_byte(&arial[(cc-32)*2+1]);
+  msb = pgm_read_byte(&arial[(cc-char_start+1)*2]);
+  lsb = pgm_read_byte(&arial[(cc-char_start+1)*2+1]);
   uint16_t to = (lsb | (msb<<8));
 
   uint8_t l = current_line;
@@ -135,7 +139,7 @@ uint8_t oled_char_large(char cc) {
   for (uint8_t ii=0; ii<2; ii++) {
     oled_start_data();
     for (uint16_t i=0; i<width; i++) {
-      uint8_t data = pgm_read_byte(&arial[96*2+start+i]);
+      uint8_t data = pgm_read_byte(&arial[(char_count+1)*2+start+i]); // use 96 for font_large.h
       twi_write(data);
     }
     twi_write(0);
