@@ -53,6 +53,8 @@ void calibrate();
 
 uint16_t value;
 uint8_t pressed = {0}; // bit 1 set if sensor 1 set, ...
+uint8_t pressed_changed = {0};
+uint8_t pressed_prev = {0};
 uint8_t count_sleep;
 #ifdef OLED
   uint8_t count_oled;

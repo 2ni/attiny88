@@ -42,7 +42,7 @@
  * / TODO light/temperature sensors adc
  * / TODO minimize font size
  * / TODO update README
- * TODO implement pump feature
+ * / TODO implement manual pump (on-off)
  * TODO graphically show humidity
  * TODO show battery status graphically
  * TODO waterproof capacitive touches
@@ -499,6 +499,12 @@ uint8_t sensor_active(uint8_t sensor) {
   else return pressed;
 }
 
+/*
+ * only triggers once when sensor is pushed
+ */
+uint8_t sensor_pushed(uint8_t sensor) {
+  return (pressed_changed & _BV(sensor)) && (pressed & _BV(sensor));
+}
 
 int main(void) {
   DINIT(); // enable debug output
@@ -535,6 +541,9 @@ int main(void) {
   TOUCH_PORT &= ~(_BV(MOIST_A) | _BV(TOUCH1) | _BV(TOUCH2) | _BV(TOUCH3));
 
   capacitive_value = 0x0000;
+
+  out_setup();
+  out_off();
 
   sei();
 
@@ -586,8 +595,17 @@ int main(void) {
       }
     }
 
+    pressed_changed = pressed ^ pressed_prev;
+    pressed_prev = pressed;
+
     last_mode = mode;
     mode = new_mode;
+
+    // toggle OUT no matter in which mode we are
+    if (sensor_pushed(3)) {
+      out_toggle();
+    }
+
     switch(mode) {
       // sleep
       case 0:
