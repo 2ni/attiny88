@@ -3,6 +3,8 @@
 
 /*
  * adapted from https://github.com/freetronics/FTOLED/blob/master/fonts/Arial_Black_16.h
+ * alternatives
+ *   https://github.com/SmallRoomLabs/QuarterK/blob/master/library/Arial16.h
  * size: 9x16px
  * 1st char: 32
  * char count: 96

@@ -60,6 +60,10 @@
 
 #define EN_CUR PC7    // enable current measurement
 #define CUR PC2       // 2.15mA/bit, 2.2A=1.1v
+
+
+#define DDR_O DDRC
+#define PORT_O PORTC
 #define OUT PC3
 
 #define SDA PC4
@@ -74,6 +78,27 @@ inline static void led_setup() {
 
   DDR_R |= _BV(LED_R); // enable as output (set 1)
   PORT_R &= ~_BV(LED_R); // set low
+}
+
+inline static void out_setup() {
+  DDR_O |= _BV(OUT); // define as output
+  PORT_O &= ~_BV(OUT); // set low
+}
+
+inline static void out_on() {
+  PORT_O |= _BV(OUT);
+}
+
+inline static void out_off() {
+  PORT_G &= ~_BV(OUT);
+}
+
+inline static int out_is_on() {
+  return PORT_G & _BV(OUT);
+}
+
+inline static void out_toggle() {
+  PORT_O ^= _BV(OUT);
 }
 
 inline static void led_on(char color) {

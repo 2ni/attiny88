@@ -28,7 +28,7 @@ uint8_t send_cmd(unsigned char cmd) {
   uint8_t timeout = 0;
   while (TWIInfo.errorCode != TWI_SUCCESS && timeout < 2) {
     TWITransmitData(data, 3, 0);
-    _delay_ms(1);
+    // _delay_ms(1);
     timeout++;
   }
   if (TWIInfo.errorCode == TWI_SUCCESS) {

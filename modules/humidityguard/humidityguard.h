@@ -110,7 +110,7 @@ int16_t convert_adc_voltage(uint16_t adc);
 void convert_int_to_char(char *buf, uint16_t measure);
 
 // show humidity on led
-void show_humidity(uint8_t show_led, uint8_t show_oled);
+char show_humidity(uint8_t show_led, uint8_t show_oled);
 void show_measure_oled(uint16_t value, uint8_t line, uint8_t col);
 uint16_t convert_hum_to_relative(uint16_t raw);
 uint16_t norm_adc_voltage(uint16_t adc, uint16_t voltage);

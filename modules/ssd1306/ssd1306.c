@@ -1,18 +1,22 @@
 /*
  * I2C scanner with hardware twi (eg used in ATtiny88)
- * based on twi library
- * https://github.com/tibounise/SSD1306-AVR
  */
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
 #include <util/twi.h>
+#include <string.h> // memset
 
 #include "def.h"
 #include "uart.h"
+#include "TWIlib.h"
 
 
-// ************************* twi functions *************************
+/* ************************* twi functions *************************
+ *
+ * https://github.com/tibounise/SSD1306-AVR
+ *
+ */
 
 #define SCL_CLOCK 100000L
 
@@ -67,7 +71,14 @@ void i2c_stop(void) {
 }
 
 
-// ************************* ssd1306 functions *************************
+/* ************************* ssd1306 functions *************************
+ *
+ * based on https://github.com/tibounise/SSD1306-AVR
+ * might help:
+ * - https://www.avrfreaks.net/forum/coding-simple-game-atmega32-and-ssd1306-graphic-display-controller?page=all
+ * - https://github.com/efthymios-ks/AVR-SSD1306-Library/tree/master/Files
+ *
+ */
 
 #define SSD1306_DEFAULT_ADDRESS 0x3C
 #define SSD1306_SETCONTRAST 0x81
@@ -100,12 +111,36 @@ void i2c_stop(void) {
 #define SSD1306_HEIGHT 64
 #define SSD1306_BUFFERSIZE (SSD1306_WIDTH*SSD1306_HEIGHT)/8
 
+uint8_t send_cmd(unsigned char cmd) {
+  uint8_t data[3];
+  data[0] = (SSD1306_DEFAULT_ADDRESS << 1) & 0xfe; // write address
+  data[1] = 0x80; //  command mode
+  data[2] = cmd;
+
+  TWIInfo.errorCode = TWI_NO_RELEVANT_INFO;
+
+  uint8_t timeout = 0;
+  while (TWIInfo.errorCode != TWI_SUCCESS && timeout < 2) {
+    TWITransmitData(data, 3, 0);
+    // _delay_ms(1);
+    timeout++;
+  }
+  if (TWIInfo.errorCode == TWI_SUCCESS) {
+    return 0; // success
+  } else {
+    DF("err 0x%02X", cmd);
+    return 1;
+  }
+}
+
+/*
 void send_cmd(uint8_t command) {
   i2c_start(SSD1306_DEFAULT_ADDRESS);
   i2c_write(0x80);
   i2c_write(command);
   i2c_stop();
 }
+*/
 
 void ssd1306_init() {
   send_cmd(SSD1306_DISPLAYOFF);
@@ -124,6 +159,9 @@ void ssd1306_init() {
   // We use internal charge pump
   send_cmd(SSD1306_CHARGEPUMP);
   send_cmd(0x14);
+
+  send_cmd(SSD1306_DISPLAYON);
+  return;
 
   // Horizontal memory mode
   send_cmd(SSD1306_MEMORYMODE);
@@ -166,11 +204,11 @@ void ssd1306_invert(uint8_t inverted) {
 void ssd1306_sendframe(uint8_t *buffer) {
   send_cmd(SSD1306_COLUMNADDR);
   send_cmd(0x00);
-  send_cmd(0x7F);
+  send_cmd(0x7F); // 128 columns
 
   send_cmd(SSD1306_PAGEADDR);
   send_cmd(0x00);
-  send_cmd(0x07);
+  send_cmd(0x07); // 8 pages
 
   // We have to send the buffer as 16 bytes packets
   // Our buffer is 1024 bytes long, 1024/16 = 64
@@ -197,7 +235,16 @@ void ssd1306_pixel(uint8_t *buffer, uint8_t pos_x, uint8_t pos_y, uint8_t pixel_
   }
 }
 
+void ssd1306_clear(uint8_t *buffer) {
+  for (uint16_t buffer_location = 0; buffer_location < SSD1306_BUFFERSIZE; buffer_location++) {
+    buffer[buffer_location] = 0x00;
+  }
+}
+
 // ************************* main function *************************
+// TODO try #define SSD1306_DEFAULT_ADDRESS 0x78 (with and without uint8_t addrw = (addr << 1) & 0xfe;
+// TODO try oled.ccp from wifisensor
+// TODO check TWBR
 
 int main(void) {
   DINIT(); // enable debug output
@@ -205,16 +252,66 @@ int main(void) {
 
   sei();
 
-  i2c_init();
+  TWIInit();
+  uint8_t txdata[1];
+  uint8_t addrw;
+  uint16_t timeout;
+
+  DL("Scanning...");
+  for (uint8_t addr = 0; addr<127; addr++) {
+    addrw = (addr << 1) & 0xfe;
+    txdata[0] = addrw;
+    TWIInfo.errorCode = TWI_NO_RELEVANT_INFO;
+
+    timeout = 0;
+    while (TWIInfo.errorCode != TWI_SUCCESS && timeout < 2) {
+      TWITransmitData(txdata, 1, 0);
+      _delay_ms(1);
+      timeout++;
+    }
+    if (TWIInfo.errorCode == TWI_SUCCESS) {
+      DF("found device 0x%02X", addr);
+    }
+  }
+  DL("Done.");
+
   ssd1306_init();
-  uint8_t buffer[1024];
+  uint8_t buffer[128];
+  buffer[127] = 0;
+  // memset(buffer, 0, 1024);
+  // ssd1306_clear(buffer);
+  for (uint16_t i=0; i<128; i++) {
+    buffer[i] = 0;
+    DF("%u", i);
+  }
+  DF("u: %u", buffer[127]);
   ssd1306_sendframe(buffer);
+
+  DL("Cleared");
+
+  while(1);
+
+  // ***************** old ******************
+
+  // pull-ups
   /*
-  ssd1306_pixel(buffer, 5,5,1);
+  PORTCR &= ~_BV(PUDC); // enable pull-up on port c
+  DDRC &= ~(_BV(PC4) | _BV(PC5)); // set as input
+  PORTC |= _BV(PC4) | _BV(PC5); // set as pull-up
   */
 
-
+  i2c_init();
   /*
+  ssd1306_init_backup();
+  uint8_t buffer[1024];
+  memset(buffer, 0, 1024);
+  // ssd1306_clear(buffer);
+  // ssd1306_pixel(buffer, 5,5,1);
+  // ssd1306_sendframe(buffer);
+
+  while(1);
+  */
+
   DL("Scanning...");
   for (uint8_t addr = 0; addr<127; addr++) {
     uint8_t addrw = (addr << 1) & 0xfe;
@@ -225,7 +322,6 @@ int main(void) {
     i2c_stop();
   }
   DL("Done.");
-  */
 
   return 0;
 }

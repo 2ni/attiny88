@@ -334,7 +334,7 @@ void calibrate_humidity() {
  * on oled if show_oled set and available
  *
  */
-void show_humidity(uint8_t show_led, uint8_t show_oled) {
+char show_humidity(uint8_t show_led, uint8_t show_oled) {
   char color;
 
   humidity = get_sensor_data_calibrated(0);
@@ -362,6 +362,8 @@ void show_humidity(uint8_t show_led, uint8_t show_oled) {
       }
     }
   #endif
+
+  return color;
 }
 
 /*
@@ -619,11 +621,20 @@ int main(void) {
         }
 
         // flash + sleep
+        // show humidity every 8x500ms = 4sec
         if (count_sleep-- == 0) {
-          show_humidity(1, 0);
+          char color = show_humidity(1, 0);
           deep_sleep(16);
           led_off_all();
           count_sleep = 8;
+
+          // flash twice if battery getting empty
+          if (convert_adc_voltage(get_analog('v')) < 39) {
+            deep_sleep(125);
+            led_on(color);
+            deep_sleep(16);
+            led_off_all();
+          }
         }
         deep_sleep(500);
 
