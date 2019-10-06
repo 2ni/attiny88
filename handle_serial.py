@@ -6,7 +6,9 @@ depends on serial.tools (pySerial)
 pip install pyserial
 '''
 
-import os, re, argparse
+import os
+import re
+import argparse
 from serial.tools import list_ports
 
 parser = argparse.ArgumentParser(description='Handle serial port(s)', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -24,9 +26,9 @@ ports = {}
 for port in list_ports.comports():
     if 'USB' in port.description:
         desc = '{port.device} | {port.hwid}'.format(port=port)
-        ports[re.sub('^.*-(\d)$', r'\1', port.hwid)] = desc
+        ports[re.sub(r'^.*-(\d)$', r'\1', port.hwid)] = desc
         if args.list:
-            print desc
+            print(desc)
 
 if (len(ports) == 0):
     print('Sorry, no ports found')
@@ -44,12 +46,12 @@ else:
     else:
         print('Please enter your port for uploading:')
         for c, port in ports.iteritems():
-            print '{c}) {port}'.format(c=c, port=port)
+            print('{c}) {port}'.format(c=c, port=port))
 
         var = ''
-        #while (not re.match('^\d+$', var) or int(var) > (len(ports)) or int(var) < 1):
+        # while (not re.match('^\d+$', var) or int(var) > (len(ports)) or int(var) < 1):
         while (var not in ports):
-            var = raw_input('Your choice: ')
+            var = input('Your choice: ')
 
         selectedport = ports[var]
 
@@ -70,9 +72,9 @@ if args.monitor:
 
 # if upload or no argument given
 if args.format:
-    print '********** erasing flash on {port}'.format(port=port)
+    print('********** erasing flash on {port}'.format(port=port))
     os.system('esptool.py --port {port} erase_flash'.format(port=port))
     exit(0)
 
-print '********** uploading to {port}'.format(port=port)
+print('********** uploading to {port}'.format(port=port))
 os.system('platformio run --target upload --upload-port {port}'.format(port=port))

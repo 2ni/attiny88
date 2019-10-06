@@ -7,8 +7,10 @@ https://stackoverflow.com/questions/26727314/multiple-files-for-one-argument-in-
 https://stackoverflow.com/questions/23766689/python-argparse-arg-with-no-flag
 '''
 
-import os, re, argparse
-from serial.tools import list_ports
+import os
+# import re
+import argparse
+# from serial.tools import list_ports
 
 parser = argparse.ArgumentParser(description='Activate given files', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('files', metavar='file', nargs='*', help='Files to activate')
@@ -32,7 +34,7 @@ files = []
 for input in args.files:
     if os.path.isdir(input):
         # alternative glob.glob('files_path/[!.]*')
-        files.extend([ os.path.join(input, f) for f in os.listdir(input) if not f.startswith(".") ])
+        files.extend([os.path.join(input, f) for f in os.listdir(input) if not f.startswith(".")])
     else:
         files.append(input)
 

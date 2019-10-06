@@ -7,3 +7,5 @@ src/
 *.elf
 *.hex
 *.deps
+.python-version
+.pio
