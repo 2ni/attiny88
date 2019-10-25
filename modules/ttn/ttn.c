@@ -22,17 +22,24 @@ int main(void) {
 
   uint8_t data[2];
   uint8_t length = 2;
+
+  // needs to be stored consistently see https://www.thethingsnetwork.org/docs/lorawan/security.html
   uint16_t frame_counter = 0;
 
   data[0] = 13; // lsb
   data[1] = 5;  // msb
 
+  uint16_t counter;
   while (1) {
+    counter = 0;
     led_toggle('r');
     lora_send_data(data, length, frame_counter);
     frame_counter++;
 
-    _delay_ms(500);
+    // wait 5min
+    while(counter++ < 600) {
+      _delay_ms(500);
+    }
   }
 
   return 0;
