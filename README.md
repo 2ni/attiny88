@@ -20,7 +20,7 @@ See the [pcb folder](pcb) for schematics.
 # Setup software
 ```
 brew install platformio avrdude
-pyenv 3.7.4 attiny88
+pyenv virtualenv 3.7.4 attiny88
 pyenv local attiny88
 pip install -r requirments.txt
 ```
