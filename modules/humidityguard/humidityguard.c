@@ -521,19 +521,6 @@ int main(void) {
     eeprom_write_word(&ee_humidity_optimum, humidity_optimum);
   }
 
-  for (uint8_t i=0; i<4; i++) {
-    offset[i] = eeprom_read_word(&ee_offset[i]);
-  }
-  // 1st time call, save defaults to eeprom
-  if (offset[0] == 0xffff) {
-    DL("write offsets");
-    uint16_t o[4] = {166, 57, 68, 65};
-    for (uint8_t i=0; i<4; i++) {
-      offset[i] = o[i];
-      eeprom_write_word(&ee_offset[i], offset[i]);
-    }
-  }
-
   led_setup();
 
   setup_timer1();
@@ -548,6 +535,23 @@ int main(void) {
   out_off();
 
   sei();
+
+  // read offset fromt humidity, 3 touch sensors
+  for (uint8_t i=0; i<4; i++) {
+    offset[i] = eeprom_read_word(&ee_offset[i]);
+  }
+
+  // 1st time call, calibrate humidity and sensors. Save defaults to eeprom
+  if (offset[0] == 0xffff) {
+    calibrate();
+    // static const uint16_t offset_defaults[4] = {166, 57, 68, 65};
+    // memcpy(offset, offset_defaults, sizeof(offset_defaults))
+
+    DL("write offsets");
+    for (uint8_t i=0; i<4; i++) {
+      eeprom_write_word(&ee_offset[i], offset[i]);
+    }
+  }
 
   for (uint8_t i=0; i<4; i++) {
     DF("sensor %u: %u (%u)", i, offset[i], get_sensor_data_raw(i));

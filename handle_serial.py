@@ -42,7 +42,7 @@ if args.port:
     selectedport = ports[args.port]
 else:
     if (len(ports) == 1):
-        selectedport = ports.values()[0]
+        selectedport = list(ports.values())[0]
     else:
         print('Please enter your port for uploading:')
         for c, port in ports.iteritems():
