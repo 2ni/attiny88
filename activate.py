@@ -27,7 +27,8 @@ os.system('find src/ -type l -delete')
 # always link common functions
 if os.path.isdir('modules/common'):
     for f in os.listdir('modules/common/'):
-        os.system('ln -s ../modules/common/{f} src/'.format(f=f))
+        if not f.endswith('.swp'):
+            os.system('ln -s ../modules/common/{f} src/'.format(f=f))
 
 # if dir given, link every file from the dir
 files = []
