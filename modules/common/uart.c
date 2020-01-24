@@ -1,5 +1,5 @@
 /*
- * DEBUG_PORT, DEBUG_PIN, DEBUG_DDR must be defined
+ * DBG_PORT, DBG_DDR, DBG must be defined
  * to a pin on which TXD is connected to
  */
 
@@ -13,12 +13,13 @@
 #define UART_CLEAR_BIT(port,bit) (port &= ~(1 << bit))
 
 #define UART_BIT_WAIT()  _delay_us(1000000.0 / (float) UART_BPS)
-#define UART_SEND_HIGH() {UART_CLEAR_BIT(DEBUG_PORT, DEBUG_PIN); UART_BIT_WAIT();}
-#define UART_SEND_LOW()  {UART_SET_BIT(DEBUG_PORT, DEBUG_PIN); UART_BIT_WAIT();}
+#define UART_SEND_HIGH() {UART_CLEAR_BIT(DBG_PORT, DBG); UART_BIT_WAIT();}
+#define UART_SEND_LOW()  {UART_SET_BIT(DBG_PORT, DBG); UART_BIT_WAIT();}
 
 uint8_t uart_setup(void){
-  UART_SET_BIT(DEBUG_DDR, DEBUG_PIN);
-  UART_SET_BIT(DEBUG_PORT, DEBUG_PIN);
+  UART_SET_BIT(DBG_DDR, DBG);
+  UART_SET_BIT(DBG_PORT, DBG);
+  _delay_ms(400); // ensure serial is ready
   return 0;
 }
 
