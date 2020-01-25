@@ -13,6 +13,7 @@ extern void     st7789_fill_screen(uint16_t color);
 extern void     st7789_on();
 extern void     st7789_off();
 extern void     st7789_char(char c, uint8_t x, uint8_t y, uint8_t scale, uint16_t fgcolor, uint16_t bgcolor);
+extern void     st7789_text(char* text, uint8_t length, uint8_t x, uint8_t y, uint8_t scale, uint8_t space, uint16_t fgcolor, uint16_t bgcolor);
 
 // vcc (pin 13)
 // gnd  (pin 10)

@@ -15,7 +15,7 @@
 
 // char set
 const uint8_t char_map[96][6] PROGMEM = {
-{ 0x00, 0x00, 0x00, 0x00, 0x00 }, // space
+{ 0x00, 0x00, 0x00, 0x00, 0x00 }, // space (32)
 { 0x00, 0x00, 0x5F, 0x00, 0x00 }, // !
 { 0x00, 0x07, 0x00, 0x07, 0x00 }, // "
 { 0x14, 0x7F, 0x14, 0x7F, 0x14 }, // #
@@ -248,13 +248,13 @@ void st7789_fill_screen(uint16_t color) {
 /*
  * ASCII char at x, y with bottom left corner
  */
-void st7789_char(char c, uint8_t x, uint8_t y, uint8_t scale, uint16_t fore, uint16_t back) {
+void st7789_char(char c, uint8_t x, uint8_t y, uint8_t scale, uint16_t fgcolor, uint16_t bgcolor) {
   // swap coordinates for now
   uint8_t tmp = y;
   y = x;
   x = tmp;
-  y = ST7789_TFTHEIGHT - y - 8;
-  x = ST7789_TFTWIDTH - x - 5;
+  y = ST7789_TFTHEIGHT - y - 5*scale;
+  x = ST7789_TFTWIDTH - x - 8*scale;
 
   uint16_t colour;
   st7789_set_addr_window(x, y, x+8*scale-1, y+6*scale-1);
@@ -265,12 +265,22 @@ void st7789_char(char c, uint8_t x, uint8_t y, uint8_t scale, uint16_t fore, uin
     // DF("0x%02x", bits);
     for (uint8_t xr=0; xr<scale; xr++) {
       for (uint8_t yy=8; yy>0; yy--) {
-        if (bits>>(7-(yy-1)) & 1) colour = fore; else colour = back;
+        if (bits>>(7-(yy-1)) & 1) colour = fgcolor; else colour = bgcolor;
         for (uint8_t yr=0; yr<scale; yr++) {
           spi_fast_shift(colour >> 8);
           spi_fast_shift(colour & 0xFF);
         }
       }
     }
+  }
+}
+
+/*
+ * render array of char
+ */
+void st7789_text(char* text, uint8_t length, uint8_t x, uint8_t y, uint8_t scale, uint8_t space, uint16_t fgcolor, uint16_t bgcolor) {
+  for (uint8_t i=0; i<length; i++) {
+    st7789_char(text[i], x, y, scale, fgcolor, bgcolor);
+    x += 5*scale+space; // might add spacing
   }
 }

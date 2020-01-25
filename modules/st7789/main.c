@@ -35,12 +35,17 @@ int main(void) {
     if (c!= num-1) _delay_ms(200); // no delay if last cycle
   }
 
-  st7789_on();
   st7789_fill_screen(BLACK);
+  st7789_on();
 
-  st7789_char('2', 10, 20, 3, YELLOW, MAGENTA);
-  st7789_draw_point(10, 20, GREEN);
+  uint8_t scale = 3, space = 2;
+  st7789_char('2', 0, 0, scale, YELLOW, MAGENTA);
+  st7789_draw_point(ST7789_TFTWIDTH/2, ST7789_TFTWIDTH/2, GREEN);
   st7789_fill_rect(40, 100, 10, 20, RED);
+
+  st7789_draw_point(10, 30, GREEN);
+  char f[3] = "foo";
+  st7789_text(f, 3, 0, 50, 3, 2, GREEN, BLACK);
 
   // test resetting screen
   // after init the screen shows the same content
