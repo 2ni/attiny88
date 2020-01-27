@@ -160,7 +160,7 @@ void st7789_init() {
   DDRD |= _BV(DC);     // define DC as output
   DDR_BLK |= _BV(BLK); // define BLK as output
 
-  spi_init(3);
+  spi_init(3); // spi mode 3 for 240x240 lcd w/o CS
 
   // st7789 init sequence
   // rst process seems to be needed
@@ -192,6 +192,18 @@ void st7789_on() {
 
 void st7789_off() {
   PORT_BLK &= ~_BV(BLK); // low
+}
+
+void st7789_sleep() {
+  st7789_send_cmd(ST7789_SLPIN);
+  st7789_off();
+  _delay_ms(5);
+}
+
+void st7789_wakeup() {
+  st7789_send_cmd(ST7789_SLPOUT);
+  st7789_on();
+  _delay_ms(120);
 }
 
 void st7789_draw_point(uint8_t x, uint8_t y, uint16_t color) {

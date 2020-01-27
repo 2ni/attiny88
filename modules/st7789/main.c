@@ -45,7 +45,11 @@ int main(void) {
 
   st7789_draw_point(10, 30, GREEN);
   char f[3] = "foo";
-  st7789_text(f, 3, 0, 50, 3, 2, GREEN, BLACK);
+  st7789_text(f, 3, 0, 50, scale, space, GREEN, BLACK);
+
+  // test sleep mode
+  _delay_ms(3000);
+  st7789_sleep();
 
   // test resetting screen
   // after init the screen shows the same content
