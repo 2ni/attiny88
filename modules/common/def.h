@@ -182,4 +182,13 @@ inline static void led_toggle(char color) {
   }
 }
 
+inline static void led_flash(char color, uint8_t num) {
+  for (uint8_t c=0; c<num; c++) {
+    led_on(color);
+    _delay_ms(10);
+    led_off(color);
+    if (c!= num-1) _delay_ms(200); // no delay if last cycle
+  }
+}
+
 #endif

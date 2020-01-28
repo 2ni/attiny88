@@ -27,13 +27,7 @@ int main(void) {
   st7789_init();
 
   // blink a couple of times
-  uint8_t num=3;
-  for (uint8_t c=0; c<num; c++) {
-    led_on('r');
-    _delay_ms(10);
-    led_off('r');
-    if (c!= num-1) _delay_ms(200); // no delay if last cycle
-  }
+  led_flash('r', 3);
 
   st7789_fill_screen(BLACK);
   st7789_on();
