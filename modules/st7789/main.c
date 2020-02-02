@@ -1,6 +1,7 @@
 /**
  * simple lightweight library to control a ST7789 lcd display w/o CS pin
  * BLK off & RST low -> 300uA consumption
+ * BLK off & sleep mode -> ~100uA consumption
  * RST init process needed
  *
  * when RST low -> init() needed again. Screen shows last setup
