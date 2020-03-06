@@ -45,17 +45,16 @@ int main(void) {
   DDR_O |= (1<<OUT);    // set to output
   PORT_O |= (1<<OUT);   // set high
 
-  ADMUX &= ~(_BV(REFS0) | _BV(ADLAR)); // internal 1.1v reference, left adjusted results
-  // clear input channels 1st (corresponds to mode = 2)
-  ADMUX &= ~(_BV(MUX3) | _BV(MUX2) | _BV(MUX1) | _BV(MUX0));
-  ADMUX |= (1<<MUX1); // ADC2 measure current
-  ADCSRA |= _BV(ADEN); // enable adc
-  ADCSRA |= _BV(ADPS2) | _BV(ADPS1); // prescaler 64 -> 8MHz/64 = 125kHz
+  ADMUX |= ((0<<REFS0) | (0<<ADLAR) | // internal 1.1v reference, left adjusted results
+    (0<<MUX3) | (0<<MUX2) | (1<<MUX1) | (0<<MUX0)); // ADC2 input (current measurement)
+
+  ADCSRA |= ((1<<ADEN) | // enable adc
+  (1<<ADPS2) | (1<<ADPS1)); // prescaler 64 -> 8MHz/64 = 125kHz
 
   sei();
 
   while (1) {
-    ADCSRA |= _BV(ADSC) | _BV(ADIE); // start conversion with interrupt
+    ADCSRA |= (1<<ADSC) | (1<<ADIE); // start conversion with interrupt
     // sleep & wait for conversion
     // assume no other interrupt will wake up avr
     set_sleep_mode(SLEEP_MODE_ADC);
