@@ -50,7 +50,7 @@
 
 // current measurement
 #define EN_CUR        PC7      // enable current measurement
-#define CUR           PC2      // 2.15mA/bit, 2.2A=1.1v
+#define CUR           PC2      // ADC2, 2.15mA/bit, 2.2A=1.1v
 
 // out
 #define PORT_O        PORTC
